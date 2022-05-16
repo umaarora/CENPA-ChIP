@@ -1,0 +1,138 @@
+---
+title: "ChIP_Pi_analysis"
+author: "Uma Arora"
+date: "6/28/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Change file name for each sample
+```{r cars}
+setwd("/projects/dumont-lab/uma/centromere_mapping/files/Pi_txt")
+fmajor <- read.table(file = "PWK_M_101620_input_Forward_major.txt")
+rmajor <- read.table(file = "PWK_M_101620_input_Reverse_major.txt")
+major <- fmajor + rmajor
+major <- major[1:234,] + major[235:468,] + major[469:702,]
+major$pi <- major[,1] / major[,2]
+major <- na.omit(major)
+mean(major$pi)
+
+
+fminor <- read.table(file = "PWK_M_101620_input_Forward_minor.txt")
+rminor <- read.table(file = "PWK_M_101620_input_Reverse_minor.txt")
+minor <- fminor + rminor
+minor <- minor[1:120,] + minor[121:240,] + minor[241:360,]
+minor$pi <- minor[,1] / minor[,2]
+minor <- na.omit(minor)
+mean(minor$pi)
+
+```
+
+
+Are the Pi values in the input samples coming from reads that can map elsewhere in the genome and the centromere satellites?
+Compare overlap of reads between whole genome mapped sam file and centromere consensus mapped sam file
+B6_M_input
+```{r pressure, echo=FALSE}
+setwd("/fastscratch/uma/mapped.sam/CENPA_ChIP")
+centromere <- read.delim(file = "noheader_fastp_B6_M_input_mapped.sam", header = FALSE)
+#7146787 rows
+setwd("/fastscratch/uma/fastp/mapped")
+genome <- read.delim(file = "noheader_fastp_B6_M_input_mapped.sam", header = FALSE)
+#82635076 rows
+overlap <- merge(centromere, genome, by = "V1", all = FALSE)
+#7148570
+```
+
+B6_M_CENPA
+```{r}
+setwd("/fastscratch/uma/mapped.sam/CENPA_ChIP")
+CENPAcentromere <- read.delim(file = "noheader_fastp_B6_M_CENPA_mapped.sam", header = FALSE)
+#17308929
+setwd("/fastscratch/uma/fastp/mapped")
+CENPAgenome <- read.delim(file = "noheader_fastp_B6_M_CENPA_mapped.sam", header = FALSE)
+#20266997
+CENPAoverlap <- merge(CENPAcentromere, CENPAgenome, by = "V1", all = FALSE)
+#17304403
+```
+
+B6_M_input
+```{r pressure, echo=FALSE}
+setwd("/fastscratch/uma/mapped.sam/CENPA_ChIP")
+centromere <- read.delim(file = "noheader_fastp_B6_M_input_mapped.sam", header = FALSE)
+#7146787 rows
+setwd("/fastscratch/uma/fastp/mapped")
+genome <- read.delim(file = "noheader_fastp_B6_M_input_mapped.sam", header = FALSE)
+#82635076 rows
+overlap <- merge(centromere, genome, by = "V1", all = FALSE)
+#7148570
+```
+
+B6_M_CENPA
+```{r}
+setwd("/fastscratch/uma/mapped.sam/CENPA_ChIP")
+CENPAcentromere <- read.delim(file = "noheader_fastp_B6_M_CENPA_mapped.sam", header = FALSE)
+#17308929
+setwd("/fastscratch/uma/fastp/mapped")
+CENPAgenome <- read.delim(file = "noheader_fastp_B6_M_CENPA_mapped.sam", header = FALSE)
+#20266997
+CENPAoverlap <- merge(CENPAcentromere, CENPAgenome, by = "V1", all = FALSE)
+#17304403
+```
+
+CAST_F_011921_input
+```{r pressure, echo=FALSE}
+setwd("/fastscratch/uma/mapped.sam/CENPA_ChIP")
+centromere <- read.delim(file = "noheader_fastp_CAST_F_011921_input_mapped.sam", header = FALSE)
+#3529536
+setwd("/fastscratch/uma/fastp/mapped")
+genome <- read.delim(file = "noheader_fastp_CAST_F_011921_input_mapped.sam", header = FALSE)
+#43553602
+overlap <- merge(centromere, genome, by = "V1", all = FALSE)
+#3528339
+```
+
+CAST_F_011921_CENPA
+```{r}
+setwd("/fastscratch/uma/mapped.sam/CENPA_ChIP")
+CENPAcentromere <- read.delim(file = "noheader_fastp_CAST_F_011921_CENPA_mapped.sam", header = FALSE)
+#11699599
+setwd("/fastscratch/uma/fastp/mapped")
+CENPAgenome <- read.delim(file = "noheader_fastp_CAST_F_011921_CENPA_mapped.sam", header = FALSE)
+#33926717
+CENPAoverlap <- merge(CENPAcentromere, CENPAgenome, by = "V1", all = FALSE)
+#11696933
+
+```
+
+LEWES_F_011921_input
+```{r pressure, echo=FALSE}
+setwd("/fastscratch/uma/mapped.sam/CENPA_ChIP")
+centromere <- read.delim(file = "noheader_fastp_LEWES_F_011921_input_mapped.sam", header = FALSE)
+#5344548
+setwd("/fastscratch/uma/fastp/mapped")
+genome <- read.delim(file = "noheader_fastp_LEWES_F_011921_input_mapped.sam", header = FALSE)
+#89127532
+overlap <- merge(centromere, genome, by = "V1", all = FALSE)
+#5343512
+```
+
+LEWES_F_011921_CENPA
+```{r}
+setwd("/fastscratch/uma/mapped.sam/CENPA_ChIP")
+CENPAcentromere <- read.delim(file = "noheader_fastp_LEWES_F_011921_CENPA_mapped.sam", header = FALSE)
+#9351708
+setwd("/fastscratch/uma/fastp/mapped")
+CENPAgenome <- read.delim(file = "noheader_fastp_LEWES_F_011921_CENPA_mapped.sam", header = FALSE)
+#21389886
+CENPAoverlap <- merge(CENPAcentromere, CENPAgenome, by = "V1", all = FALSE)
+#
+
+```
+
+
+
+
+

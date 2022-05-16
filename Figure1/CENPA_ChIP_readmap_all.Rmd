@@ -1,0 +1,179 @@
+---
+title: "CENPA_ChIPseq_readmapping_analysis"
+author: "Uma Arora"
+date: "4/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+```
+
+## R Markdown
+
+Read in ChIP-seq data mapped to consensus minor sat, major sat, and ymin. 
+```{r cars}
+setwd("~/Box/centromere_ChIP_seq/CENP-A_ChIP/manuscript/Figures/Figure1")
+data <- read.csv(file = 'CENPA_ChIPseq_mapping.csv', header = TRUE)
+data$unmapped <- (data$total.reads.in.idxstats/data$total.reads.fastq)*100
+data$mapped <- 100 - data$unmapped
+```
+
+Percent mapped minor
+```{r}
+ggplot(data, aes(x = AB, y = minor.fastq, color = Strain)) + 
+  geom_point()
+```
+
+Percent mapped major
+```{r}
+ggplot(data, aes(x = AB, y = major.fastq, color = Strain)) + 
+  geom_point()
+```
+
+Percentage mapped Y
+```{r}
+ggplot(data, aes(x = AB, y = y.fastq, color = Sex)) + 
+  geom_point()
+```
+
+Total percentage mapped by ChIP
+```{r}
+ggplot(data, aes(x = AB, y = mapped, color = Strain)) + 
+  geom_point()
+```
+
+Percent mapped major and minor boxplot
+Have to wrangle the dataframe to make it tidy
+```{r}
+tidy_data_minor <- data[,c(14,15,13,5)]
+tidy_data_minor$SAT <- c("MINOR")
+colnames(tidy_data_minor) <- c("Strain","Sex","AB","PercentMapped","SAT")
+
+tidy_data_major <- data[,c(14,15,13,8)]
+tidy_data_major$SAT <- c("MAJOR")
+colnames(tidy_data_major) <- c("Strain","Sex","AB","PercentMapped","SAT")
+
+tidy_data <- rbind(tidy_data_minor,tidy_data_major)
+
+```
+
+
+```{r}
+ggplot(tidy_data, aes(x = Strain, y = PercentMapped, color = AB)) + 
+  geom_boxplot() +
+  geom_point(aes(x = Strain, y = PercentMapped, fill = AB),color="black", alpha=0.9) +
+  scale_color_manual(values = c("#CC79A7","#E69F00","#56B4E9","black")) +
+  facet_grid(cols = vars(SAT)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45,vjust = 0.9, hjust=0.75))
+```
+
+Statistics for read mapping percentages
+
+make a new column that divides the ChIP over input
+```{r}
+data$minorCHIPoverINPUT <- c(data[1,5]/data[4,5], 
+                             data[2,5]/data[4,5], 
+                             data[3,5]/data[4,5],
+                             data[4,5]/data[4,5],
+                             data[5,5]/data[24,5],
+                             data[6,5]/data[9,5],
+                             data[7,5]/data[9,5],
+                             data[8,5]/data[9,5],
+                             data[9,5]/data[9,5],
+                             data[10,5]/data[25,5],
+                             data[11,5]/data[26,5],
+                             data[12,5]/data[27,5],
+                             data[13,5]/data[16,5],
+                             data[14,5]/data[16,5],
+                             data[15,5]/data[16,5],
+                             data[16,5]/data[16,5],
+                             data[17,5]/data[28,5],
+                             data[18,5]/data[29,5],
+                             data[19,5]/data[22,5],
+                             data[20,5]/data[22,5],
+                             data[21,5]/data[22,5],
+                             data[22,5]/data[22,5],
+                             data[23,5]/data[30,5],
+                             data[24,5]/data[24,5],
+                             data[25,5]/data[25,5],
+                             data[26,5]/data[26,5],
+                             data[27,5]/data[27,5],
+                             data[28,5]/data[28,5],
+                             data[29,5]/data[29,5],
+                             data[30,5]/data[30,5])
+
+data$majorCHIPoverINPUT <- c(data[1,8]/data[4,8], 
+                             data[2,8]/data[4,8], 
+                             data[3,8]/data[4,8],
+                             data[4,8]/data[4,8],
+                             data[5,8]/data[24,8],
+                             data[6,8]/data[9,8],
+                             data[7,8]/data[9,8],
+                             data[8,8]/data[9,8],
+                             data[9,8]/data[9,8],
+                             data[10,8]/data[25,8],
+                             data[11,8]/data[26,8],
+                             data[12,8]/data[27,8],
+                             data[13,8]/data[16,8],
+                             data[14,8]/data[16,8],
+                             data[15,8]/data[16,8],
+                             data[16,8]/data[16,8],
+                             data[17,8]/data[28,8],
+                             data[18,8]/data[29,8],
+                             data[19,8]/data[22,8],
+                             data[20,8]/data[22,8],
+                             data[21,8]/data[22,8],
+                             data[22,8]/data[22,8],
+                             data[23,8]/data[30,8],
+                             data[24,8]/data[24,8],
+                             data[25,8]/data[25,8],
+                             data[26,8]/data[26,8],
+                             data[27,8]/data[27,8],
+                             data[28,8]/data[28,8],
+                             data[29,8]/data[29,8],
+                             data[30,8]/data[30,8])
+```
+
+Q: Generally, do more CENP-A ChIP reads (relative to input reads) map to the minor satellite than the major satellite?
+```{r}
+minor_data <- data[,c(13,14,15,19)]
+colnames(minor_data) <- c("AB", "Strain", "Sex", "CHIPoverINPUT")
+minor_data$SAT <- c("minor")
+
+major_data <- data[,c(13,14,15,20)]
+colnames(major_data) <- c("AB", "Strain", "Sex", "CHIPoverINPUT")
+major_data$SAT <- c("major")
+
+minormajor <- rbind(minor_data, major_data)
+
+minormajorCENPA <- minormajor[minormajor$AB == "CENPA",]
+
+wilcox.test(as.numeric(CHIPoverINPUT)~as.factor(SAT), data = minormajorCENPA)
+```
+Answer: YES
+Wilcoxon rank sum exact test
+data:  as.numeric(CHIPoverINPUT) by as.factor(SAT)
+W = 0, p-value = 2.835e-06
+alternative hypothesis: true location shift is not equal to 0
+
+Q: Are there strain differences in the percentage of reads that map to each satellite in CENP-A ChIP compared to input
+MINOR SATELLITE
+```{r}
+kruskal.test(minorCHIPoverINPUT ~ Strain, data = data)
+```
+Answer: No
+ruskal-Wallis rank sum test
+data:  minorCHIPoverINPUT by Strain
+Kruskal-Wallis chi-squared = 0.33805, df = 3, p-value = 0.9527
+
+MAJOR SATELLITE
+```{r}
+kruskal.test(majorCHIPoverINPUT ~ Strain, data = data)
+```
+Answer: Yes
+Kruskal-Wallis rank sum test
+data:  majorCHIPoverINPUT by Strain
+Kruskal-Wallis chi-squared = 6.986, df = 3, p-value = 0.07235
+

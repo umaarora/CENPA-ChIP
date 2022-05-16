@@ -1,0 +1,56 @@
+MOTIF_INDEX	MOTIF_SOURCE	MOTIF_ID	ALT_ID	CONSENSUS	WIDTH	SITES	E-VALUE	E-VALUE_SOURCE	MOST_SIMILAR_MOTIF_SOURCE	MOST_SIMILAR_MOTIF	TF_MOTIF	URL	STRAIN
+1	MEME	MAWAYGWTRRAAACC	MEME-3	MAWAYGWTRRAAACC	15	1000	8.9e-3182	MEME	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	GATA3_MOUSE.H11MO.0.A	GATA3	http://hocomoco.autosome.ru/motif/GATA3_MOUSE.H11MO.0.A	CAST/EiJ
+2	MEME	TGATMTACACTG	MEME-2	TGATMTACACTG	12	999	3.4e-3107	MEME	 	 		 	CAST/EiJ
+3	MEME	TTTCATTGTAA	MEME-1	TTTCATTGTAA	11	962	2.7e-2755	MEME	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	BATF3_MOUSE.H11MO.0.A	BATF3	http://hocomoco.autosome.ru/motif/BATF3_MOUSE.H11MO.0.A	CAST/EiJ
+4	STREME	1-GTTACAATGAAAA	STREME-1	GTTACAATGAAAA	13	977	2.70E-53	STREME	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	BATF3_MOUSE.H11MO.0.A	BATF3	http://hocomoco.autosome.ru/motif/BATF3_MOUSE.H11MO.0.A	CAST/EiJ
+5	STREME	2-ACAGTGTAKATCA	STREME-2	ACAGTGTAKATCA	13	950	9.90E-47	STREME	 	 		 	CAST/EiJ
+6	STREME	3-AATGATAAAAAC	STREME-3	AATGATAAAAAC	12	611	1.10E-26	STREME	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	GATA3_MOUSE.H11MO.0.A	GATA3	http://hocomoco.autosome.ru/motif/GATA3_MOUSE.H11MO.0.A	CAST/EiJ
+7	STREME	4-CAWSGAA	STREME-4	CAWSGAA	7	880	4.60E-26	STREME	 	 		 	CAST/EiJ
+8	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	ISL1_MOUSE.H11MO.0.A	 	VCTAATKGV	9	602	7.90E-17	CENTRIMO	 	 	ISL1	http://hocomoco.autosome.ru/motif/ISL1_MOUSE.H11MO.0.A	CAST/EiJ
+9	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	CUX2_MOUSE.H11MO.0.C	 	WRATCAATRAA	11	830	2.30E-14	CENTRIMO	 	 	CUX2	http://hocomoco.autosome.ru/motif/CUX2_MOUSE.H11MO.0.C	CAST/EiJ
+10	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	HNF1B_MOUSE.H11MO.0.A	 	RGTTAATRATTAACH	15	533	4.70E-13	CENTRIMO	 	 	HNF1B	http://hocomoco.autosome.ru/motif/HNF1B_MOUSE.H11MO.0.A	CAST/EiJ
+11	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	JUNB_MOUSE.H11MO.0.A	 	VTGAGTCAY	9	760	8.50E-13	CENTRIMO	 	 	JUNB	http://hocomoco.autosome.ru/motif/JUNB_MOUSE.H11MO.0.A	CAST/EiJ
+12	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	JUN_MOUSE.H11MO.0.A	 	DVTGAGTCAY	10	753	1.10E-12	CENTRIMO	 	 	JUN	http://hocomoco.autosome.ru/motif/JUN_MOUSE.H11MO.0.A	CAST/EiJ
+13	STREME	12-CATTGTAACTCAT	STREME-12	12-CATTGTAACTCAT	13	36	2.00E-12	STREME	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	JUNB_MOUSE.H11MO.0.A	JUNB	http://hocomoco.autosome.ru/motif/JUNB_MOUSE.H11MO.0.A	CAST/EiJ
+14	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	CUX1_MOUSE.H11MO.0.C	 	RBRSBDATCGATSK	14	420	1.40E-11	CENTRIMO	 	 	CUX1	http://hocomoco.autosome.ru/motif/CUX1_MOUSE.H11MO.0.C	CAST/EiJ
+15	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	LHX6_MOUSE.H11MO.0.C	 	VCTGATTRV	9	472	4.20E-11	CENTRIMO	 	 	LHX6	http://hocomoco.autosome.ru/motif/LHX6_MOUSE.H11MO.0.C	CAST/EiJ
+16	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	OVOL1_MOUSE.H11MO.0.C	 	TGTAACTGT	9	547	9.00E-11	CENTRIMO	 	 	OVOL1	http://hocomoco.autosome.ru/motif/OVOL1_MOUSE.H11MO.0.C	CAST/EiJ
+17	STREME	5-TCTAMWA	STREME-5	TCTAMWA	7	512	9.30E-11	STREME	 	 		 	CAST/EiJ
+18	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	NOBOX_MOUSE.H11MO.0.C	 	HTAATTRSY	9	269	1.00E-10	CENTRIMO	 	 	NOBOX	http://hocomoco.autosome.ru/motif/NOBOX_MOUSE.H11MO.0.C	CAST/EiJ
+19	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	HNF1A_MOUSE.H11MO.0.A	 	RGTTAATMWTTAMCM	15	507	4.50E-10	CENTRIMO	 	 	HNF1A	http://hocomoco.autosome.ru/motif/HNF1A_MOUSE.H11MO.0.A	CAST/EiJ
+20	STREME	9-TCAWTGA	STREME-9	TCAWTGA	7	61	6.10E-10	STREME	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	CUX2_MOUSE.H11MO.0.C	CUX2	http://hocomoco.autosome.ru/motif/CUX2_MOUSE.H11MO.0.C	CAST/EiJ
+21	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	BATF_MOUSE.H11MO.0.A	 	DSTYYYRAWATGASTSAK	18	682	1.20E-09	CENTRIMO	 	 	BATF	http://hocomoco.autosome.ru/motif/BATF_MOUSE.H11MO.0.A	CAST/EiJ
+22	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	ATF3_MOUSE.H11MO.0.A	 	VTGAGTCAB	9	763	1.50E-09	CENTRIMO	 	 	ATF3	http://hocomoco.autosome.ru/motif/ATF3_MOUSE.H11MO.0.A	CAST/EiJ
+23	STREME	6-GAAACSGG	STREME-6	GAAACSGG	8	529	2.00E-09	STREME	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	RFX2_MOUSE.H11MO.0.A	RFX2	http://hocomoco.autosome.ru/motif/RFX2_MOUSE.H11MO.0.A	CAST/EiJ
+24	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	HXA13_MOUSE.H11MO.0.C	 	GDTTTTATTGG	11	214	2.60E-09	CENTRIMO	 	 	HXA13	http://hocomoco.autosome.ru/motif/HXA13_MOUSE.H11MO.0.C	CAST/EiJ
+25	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	BARX1_MOUSE.H11MO.0.C	 	BBTAAKKGTTTT	12	369	3.70E-09	CENTRIMO	 	 	BARX1	http://hocomoco.autosome.ru/motif/BARX1_MOUSE.H11MO.0.C	CAST/EiJ
+26	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	FOSB_MOUSE.H11MO.0.A	 	VTGAGTCAB	9	761	4.70E-09	CENTRIMO	 	 	FOSB	http://hocomoco.autosome.ru/motif/FOSB_MOUSE.H11MO.0.A	CAST/EiJ
+27	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	PRRX2_MOUSE.H11MO.0.C	 	YTAATTR	7	296	8.10E-09	CENTRIMO	 	 	PRRX2	http://hocomoco.autosome.ru/motif/PRRX2_MOUSE.H11MO.0.C	CAST/EiJ
+28	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	SOX2_MOUSE.H11MO.0.A	 	KCYWTTGTHATGCWAA	16	416	1.20E-07	CENTRIMO	 	 	SOX2	http://hocomoco.autosome.ru/motif/SOX2_MOUSE.H11MO.0.A	CAST/EiJ
+29	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	SP7_MOUSE.H11MO.0.A	 	VWAMCCTRTAATTW	14	131	1.40E-07	CENTRIMO	 	 	SP7	http://hocomoco.autosome.ru/motif/SP7_MOUSE.H11MO.0.A	CAST/EiJ
+30	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	DBP_MOUSE.H11MO.0.B	 	VTTATGYAABM	11	439	1.50E-07	CENTRIMO	 	 	DBP	http://hocomoco.autosome.ru/motif/DBP_MOUSE.H11MO.0.B	CAST/EiJ
+31	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	DLX5_MOUSE.H11MO.0.C	 	TAATTAYAGGK	11	158	1.80E-06	CENTRIMO	 	 	DLX5	http://hocomoco.autosome.ru/motif/DLX5_MOUSE.H11MO.0.C	CAST/EiJ
+32	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	GCR_MOUSE.H11MO.0.A	 	RGRACASRVTGTYCY	15	437	6.40E-06	CENTRIMO	 	 	GCR	http://hocomoco.autosome.ru/motif/GCR_MOUSE.H11MO.0.A	CAST/EiJ
+33	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	PRGR_MOUSE.H11MO.0.A	 	RGAACARRVTGTYCY	15	438	1.20E-05	CENTRIMO	 	 	PRGR	http://hocomoco.autosome.ru/motif/PRGR_MOUSE.H11MO.0.A	CAST/EiJ
+34	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	TF7L1_MOUSE.H11MO.0.A	 	BBCTTTGAWST	11	155	1.70E-05	CENTRIMO	 	 	TF7L1	http://hocomoco.autosome.ru/motif/TF7L1_MOUSE.H11MO.0.A	CAST/EiJ
+35	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	SOX5_MOUSE.H11MO.0.C	 	YATTGTTW	8	768	1.90E-05	CENTRIMO	 	 	SOX5	http://hocomoco.autosome.ru/motif/SOX5_MOUSE.H11MO.0.C	CAST/EiJ
+36	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	AIRE_MOUSE.H11MO.0.C	 	HTTGGWWWWAWTGGDTWH	18	227	4.10E-05	CENTRIMO	 	 	AIRE	http://hocomoco.autosome.ru/motif/AIRE_MOUSE.H11MO.0.C	CAST/EiJ
+37	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	HSF2_MOUSE.H11MO.0.A	 	VGAABRTTCTAGAA	14	648	4.20E-05	CENTRIMO	 	 	HSF2	http://hocomoco.autosome.ru/motif/HSF2_MOUSE.H11MO.0.A	CAST/EiJ
+38	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	PO3F2_MOUSE.H11MO.0.A	 	YWCATGMATATKCATA	16	146	1.00E-04	CENTRIMO	 	 	PO3F2	http://hocomoco.autosome.ru/motif/PO3F2_MOUSE.H11MO.0.A	CAST/EiJ
+39	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	LHX3_MOUSE.H11MO.0.C	 	NCTRATKRV	9	201	1.60E-04	CENTRIMO	 	 	LHX3	http://hocomoco.autosome.ru/motif/LHX3_MOUSE.H11MO.0.C	CAST/EiJ
+40	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	ALX1_MOUSE.H11MO.0.B	 	RTAATTRVATTA	12	198	3.00E-04	CENTRIMO	 	 	ALX1	http://hocomoco.autosome.ru/motif/ALX1_MOUSE.H11MO.0.B	CAST/EiJ
+41	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	HXA1_MOUSE.H11MO.0.C	 	TKGATGGATG	10	144	5.10E-04	CENTRIMO	 	 	HXA1	http://hocomoco.autosome.ru/motif/HXA1_MOUSE.H11MO.0.C	CAST/EiJ
+42	STREME	14-CAATGAAAAA	STREME-14	14-CAATGAAAAA	10	28	7.20E-04	STREME	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	HNF6_MOUSE.H11MO.0.A		http://hocomoco.autosome.ru/motif/HNF6_MOUSE.H11MO.0.A	CAST/EiJ
+43	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	STA5B_MOUSE.H11MO.0.A	 	YTTCYKRGAAAY	12	760	1.90E-03	CENTRIMO	 	 	STA5B	http://hocomoco.autosome.ru/motif/STA5B_MOUSE.H11MO.0.A	CAST/EiJ
+44	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	HLF_MOUSE.H11MO.0.C	 	DGTTRCAYAAS	11	441	4.30E-03	CENTRIMO	 	 	HLF	http://hocomoco.autosome.ru/motif/HLF_MOUSE.H11MO.0.C	CAST/EiJ
+45	STREME	7-CACTCATGTAATA	STREME-7	CACTCATGTAATA	13	149	5.10E-03	STREME	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	DBP_MOUSE.H11MO.0.B	DBP	http://hocomoco.autosome.ru/motif/DBP_MOUSE.H11MO.0.B	CAST/EiJ
+46	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	MTF1_MOUSE.H11MO.0.C	 	MGKGCCGTGTGCAAARS	17	17	7.30E-03	CENTRIMO	 	 	MTF1	http://hocomoco.autosome.ru/motif/MTF1_MOUSE.H11MO.0.C	CAST/EiJ
+47	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	SMAD2_MOUSE.H11MO.0.A	 	TCTGYCTGB	9	30	1.20E-02	CENTRIMO	 	 	SMAD2	http://hocomoco.autosome.ru/motif/SMAD2_MOUSE.H11MO.0.A	CAST/EiJ
+48	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	PO3F1_MOUSE.H11MO.0.C	 	CTCATGMATATKYAWD	16	721	2.00E-02	CENTRIMO	 	 	PO3F1	http://hocomoco.autosome.ru/motif/PO3F1_MOUSE.H11MO.0.C	CAST/EiJ
+49	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	RORA_MOUSE.H11MO.0.C	 	AWSTRGGTCARRG	13	88	2.30E-02	CENTRIMO	 	 	RORA	http://hocomoco.autosome.ru/motif/RORA_MOUSE.H11MO.0.C	CAST/EiJ
+50	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	MAFG_MOUSE.H11MO.0.A	 	RWWWNTGCTGASTCAGCA	18	15	2.80E-02	CENTRIMO	 	 	MAFG	http://hocomoco.autosome.ru/motif/MAFG_MOUSE.H11MO.0.A	CAST/EiJ
+51	db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme	RXRB_MOUSE.H11MO.0.C	 	TSAGGTCASR	10	58	3.00E-02	CENTRIMO	 	 	RXRB	http://hocomoco.autosome.ru/motif/RXRB_MOUSE.H11MO.0.C	CAST/EiJ
+													
+# MEME-ChIP (Motif Analysis of Large Nucleotide Datasets): Version 5.4.0 released on Sat Aug 21 19:23:23 2021 -0700													
+# The format of this file is described at https://meme-suite.org/meme//doc/meme-chip-output-format.html													
+# meme-chip -oc . -time 240 -ccut 100 -fdesc description -dna -order 2 -minw 6 -maxw 15 -db db/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format.meme -meme-mod zoops -meme-nmotifs 3 -meme-searchsize 100000 -streme-pvt 0.05 -streme-totallength 4000000 -centrimo-score 5.0 -centrimo-ethresh 10.0 CAST_0.1percent_allTRUE_normReadcount_normReadscore_top1000.fa													
