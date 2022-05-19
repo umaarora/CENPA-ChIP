@@ -7,7 +7,8 @@ ChIP_ReadMapping_Analysis.Rmd: Script to process files for the analysis represen
 
 ChIP_k-mer_Analysis.Rmd: Scripts to process files for the analyses represented in Figures 3-4 and Supplemental Figures S4-S7. These are using data from replicates combined together. 
 
-Stylo_091321.Rmd: Script used to run stylo analysis on all replicates combined
+ChIP_k-mer_analysis_replicates.Rmd: Script used to run stylo analysis on replicates individually. Analyses were run on individual replicates but not included in the manuscript.
 
-ChIP_k-mer_Analysis.Rmd: Script used to run stylo analysis on replicates individually
+Stylo_091321.Rmd: Script used to run stylo analysis on all replicates combined, replicates separated, and iteration analysis.
+
 
