@@ -398,7 +398,4 @@ write.table(PWK_M_101620_CENPA_ordered_top1000, file = "PWK_M_101620_CENPA_0.1pe
 
 ```
 
-2. separate each replicates enriched kmers and score respective replicates reads
-
-
 
