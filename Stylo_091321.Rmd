@@ -845,10 +845,6 @@ stylo(frequencies = frequency.list.table,
 ```
 
 
-Replicate specific k-mer enrichment?
-to do...
-
-
 #################################
 3/10/22
 
