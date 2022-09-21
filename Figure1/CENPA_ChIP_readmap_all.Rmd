@@ -6,14 +6,14 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-library(ggplot2)
+library(tidyverse)
 ```
 
 ## R Markdown
 
 Read in ChIP-seq data mapped to consensus minor sat, major sat, and ymin. 
 ```{r cars}
-setwd("~/Box/centromere_ChIP_seq/CENP-A_ChIP/manuscript/Figures/Figure1")
+setwd("~/Box/centromere_ChIP_seq/CENP-A_ChIP/data")
 data <- read.csv(file = 'CENPA_ChIPseq_mapping.csv', header = TRUE)
 data$unmapped <- (data$total.reads.in.idxstats/data$total.reads.fastq)*100
 data$mapped <- 100 - data$unmapped
@@ -43,6 +43,8 @@ ggplot(data, aes(x = AB, y = mapped, color = Strain)) +
   geom_point()
 ```
 
+
+
 Percent mapped major and minor boxplot
 Have to wrangle the dataframe to make it tidy
 ```{r}
@@ -62,8 +64,6 @@ tidy_data <- rbind(tidy_data_minor,tidy_data_major)
 ```{r}
 ggplot(tidy_data, aes(x = Strain, y = PercentMapped, color = AB)) + 
   geom_boxplot() +
-  geom_point(aes(x = Strain, y = PercentMapped, fill = AB),color="black", alpha=0.9) +
-  scale_color_manual(values = c("#CC79A7","#E69F00","#56B4E9","black")) +
   facet_grid(cols = vars(SAT)) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 45,vjust = 0.9, hjust=0.75))
@@ -72,6 +72,7 @@ ggplot(tidy_data, aes(x = Strain, y = PercentMapped, color = AB)) +
 Statistics for read mapping percentages
 
 make a new column that divides the ChIP over input
+
 ```{r}
 data$minorCHIPoverINPUT <- c(data[1,5]/data[4,5], 
                              data[2,5]/data[4,5], 
@@ -177,3 +178,106 @@ Kruskal-Wallis rank sum test
 data:  majorCHIPoverINPUT by Strain
 Kruskal-Wallis chi-squared = 6.986, df = 3, p-value = 0.07235
 
+Is there a significant difference between percentage of input reads mapping to minor sat between strains?
+```{r}
+tidy_input_minor <- data[,c(14,15,13,5)]
+tidy_input_minor$SAT <- c("MINOR")
+colnames(tidy_input_minor) <- c("Strain","Sex","AB","PercentMapped","SAT")
+
+tidy_input_major <- data[,c(14,15,13,8)]
+tidy_input_major$SAT <- c("MAJOR")
+colnames(tidy_input_major) <- c("Strain","Sex","AB","PercentMapped","SAT")
+
+tidy_data_input <- rbind(tidy_input_minor,tidy_input_major)
+
+tidy_input_minor <- tidy_input_minor[tidy_input_minor$AB == "input",]
+tidy_input_major <- tidy_input_major[tidy_input_major$AB == "input",]
+tidy_data_input <- tidy_data_input[tidy_data_input$AB == "input",]
+```
+
+Are there strain differences in the percentage of reads that map to minor satellite in input samples?
+
+```{r}
+kruskal.test(PercentMapped ~ Strain, data = tidy_input_minor)
+
+```
+
+Are there strain differences in the percentage of reads that map to major satellite in input samples?
+
+```{r}
+kruskal.test(PercentMapped ~ Strain, data = tidy_input_major)
+
+```
+
+Reviewer comments - 
+
+If 20-40% of CENP-A ChIP maps to minor satellite
+2-10% of CENP-A ChIP maps to major satellite
+Where do the rest of the reads map? 
+
+Mapped reads to the mm11 genome and looked at idxstats of mapping
+
+Read in files and create a dataframe for strain, sex, AB, percent mapped, sat (which is whole genome in this case)
+```{r}
+setwd('/Users/arorau/Box/centromere_ChIP_seq/CENP-A_ChIP/data/mm11_mapped/')
+path = "/Users/arorau/Box/centromere_ChIP_seq/CENP-A_ChIP/data/mm11_mapped"
+
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+GenomeMapped <- data.frame(SAMPLE = character(),
+                   mm11_MAPPED = integer(),
+                   mm11_UNMAPPED = integer())
+
+for(f in fs){    
+  filename <- strsplit(f,".", fixed = TRUE)
+  fname = file.path(path,f)
+  file = read.delim(fname, header = FALSE)
+  genome_mapped <- sum(file$V3)
+  genome_unmapped <- sum(file$V4)
+  assign(filename[[1]][1],file)
+  new <- c(filename[[1]][1],genome_mapped,genome_unmapped)
+  GenomeMapped <- rbind(GenomeMapped,new)
+}
+
+colnames(GenomeMapped) <- c("sample.name","mm11_MAPPED","mm11_UNMAPPED")
+#Merge data about read count and mapping data
+merged <- merge(data,GenomeMapped, by = "sample.name",all = TRUE)
+
+merged$mm11_MAPPED <- as.numeric(merged$mm11_MAPPED)
+merged$mm11_UNMAPPED <- as.numeric(merged$mm11_UNMAPPED)
+merged$mm11_MAPPEDpercent <- (merged$mm11_MAPPED/merged$total.reads.fastq)*100
+merged$mm11_UNMAPPEDpercent <- (merged$mm11_UNMAPPED/merged$total.reads.fastq)*100
+
+
+```
+```{r}
+tidy_merged_minor <- merged[,c(14,15,13,5)]
+tidy_merged_minor$SAT <- c("MINOR")
+colnames(tidy_merged_minor) <- c("Strain","Sex","AB","PercentMapped","SAT")
+
+tidy_merged_major <- merged[,c(14,15,13,8)]
+tidy_merged_major$SAT <- c("MAJOR")
+colnames(tidy_merged_major) <- c("Strain","Sex","AB","PercentMapped","SAT")
+
+tidy_merged_genome <- merged[,c(14,15,13,22)]
+tidy_merged_genome$SAT <- c("GENOME")
+colnames(tidy_merged_genome) <- c("Strain","Sex","AB","PercentMapped","SAT")
+
+tidy_data_merged <- rbind(tidy_data_minor,tidy_data_major,tidy_merged_genome)
+
+tidy_data_merged <- na.omit(tidy_data_merged)
+```
+
+
+```{r}
+ggplot(tidy_data_merged, aes(x = Strain, y = PercentMapped, color = AB)) + 
+  geom_boxplot() +
+  facet_grid(cols = vars(SAT)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45,vjust = 0.9, hjust=0.75))
+```
+
+
+
+
+Is there any overlap between reads that map to centomere satellite and whole genome?
