@@ -1,0 +1,1764 @@
+---
+title: "stylo_replicates_080822"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+CENPA randomization replicates
+
+REPLICATES
+Sample each replicate 1000 times
+Isolate first column from read count files (named readscore.txt)
+```{bash}
+cd /fastscratch/uma/CENPA_ChIP/CENPA
+
+for file in *_CENPA.fastq.readscore.txt; do
+
+awk -F '\t' '{print $1}' $file > $file.firstcol
+
+done
+```
+
+Make all the directories 
+```{bash}
+for i in {1..1000}; do
+
+mkdir /fastscratch/uma/CENPA_ChIP/CENPA/replicates/rep${i}
+
+done
+```
+
+
+Sample each replicate 1000 times for 1000 reads
+```{bash}
+for file in *_CENPA.fastq.readscore.txt.firstcol; do
+
+for i in {1..1000}; do
+
+shuf -n 1000 /fastscratch/uma/CENPA_ChIP/CENPA/${file} > /fastscratch/uma/CENPA_ChIP/CENPA/replicates/rep${i}/${file}.sample${i}.txt
+
+done
+
+done
+```
+
+
+```{r}
+for (i in 1:1){
+
+   corpusdirectory <- paste("/fastscratch/uma/CENPA_ChIP/CENPA/replicates/rep", i, sep = "")
+
+   top1000.corpus <- load.corpus(files = "all",
+                              corpus.dir = corpusdirectory,
+                              encoding = "UTF-8")
+   corpus.words.1.grams <- txt.to.features(top1000.corpus,
+                                        ngram.size = 1,
+                                        features = "w")
+   frequency.list <- make.frequency.list(corpus.words.1.grams)
+   frequency.list.value <- make.frequency.list(corpus.words.1.grams, value = TRUE)
+   frequency.list.table <- make.table.of.frequencies(corpus.words.1.grams, features = frequency.list)
+
+   PCA <- stylo(frequencies = frequency.list.table,
+      analysis.type = "PCR",
+      custom.graph.title = "Strain Variation",
+      mfw.min = 4004, mfw.max = 4004,
+      gui = FALSE)
+
+   PCAcoord <- as.data.frame(PCA$pca.coordinates)
+   PCAcoord$STRAIN <- rownames(PCAcoord)
+   PCAcoord %>%
+      pivot_longer(-STRAIN, names_to = "sample", values_to = "PCaxis") -> PCAcoord
+
+   PCAname <- paste("PCA", i, sep = "")
+   assign(PCAname, PCAcoord)
+
+   CA <- stylo(frequencies = frequency.list.table,
+      analysis.type = "CA",
+      custom.graph.title = "Strain Variation Cluster",
+      mfw.min = 4004, mfw.max = 4004,
+      gui = FALSE)
+  
+   PCAcoord <- as.data.frame(PCA$pca.coordinates)
+   PCAcoord$STRAIN <- rownames(PCAcoord)
+   PCAcoord %>%
+      pivot_longer(-STRAIN, names_to = "sample", values_to = "PCaxis") -> PCAcoord
+
+   PCAname <- paste("PCA", i, sep = "")
+   assign(PCAname, PCAcoord)
+
+   CA <- stylo(frequencies = frequency.list.table,
+      analysis.type = "CA",
+      custom.graph.title = "Strain Variation Cluster",
+      mfw.min = 4004, mfw.max = 4004,
+      gui = FALSE)
+
+   CAdist <- as.data.frame(CA$distance.table)
+   CAdist$STRAIN <- rownames(CAdist)
+   CAdist %>%
+      pivot_longer(-STRAIN, names_to = "sample", values_to = "dist") -> CAdist
+
+   CAname <- paste("CA", i, sep = "")
+   assign(CAname, CAdist)
+
+}
+
+```
+
+
+```{r,echo=FALSE}
+for (i in 2:1000){
+
+   corpusdirectory <- paste("/fastscratch/uma/CENPA_ChIP/CENPA/replicates/rep", i, sep = "")
+
+   top1000.corpus <- load.corpus(files = "all",
+                              corpus.dir = corpusdirectory,
+                              encoding = "UTF-8")
+   corpus.words.1.grams <- txt.to.features(top1000.corpus,
+                                        ngram.size = 1,
+                                        features = "w")
+   frequency.list <- make.frequency.list(corpus.words.1.grams)
+   frequency.list.value <- make.frequency.list(corpus.words.1.grams, value = TRUE)
+   frequency.list.table <- make.table.of.frequencies(corpus.words.1.grams, features = frequency.list)
+
+   PCA <- stylo(frequencies = frequency.list.table,
+      analysis.type = "PCR",
+      custom.graph.title = "Strain Variation",
+      mfw.min = 4004, mfw.max = 4004,
+      gui = FALSE)
+
+   PCAcoord <- as.data.frame(PCA$pca.coordinates)
+   PCAcoord$STRAIN <- rownames(PCAcoord)
+   PCAcoord %>%
+      pivot_longer(-STRAIN, names_to = "sample", values_to = "PCaxis") -> PCAcoord
+
+   PCA1 <- rbind(PCA1, PCAcoord)
+
+   CA <- stylo(frequencies = frequency.list.table,
+      analysis.type = "CA",
+      custom.graph.title = "Strain Variation Cluster",
+      mfw.min = 4004, mfw.max = 4004,
+      gui = FALSE)
+
+   CAdist <- as.data.frame(CA$distance.table)
+   CAdist$STRAIN <- rownames(CAdist)
+   CAdist %>%
+      pivot_longer(-STRAIN, names_to = "sample", values_to = "dist") -> CAdist
+
+   CA1 <- rbind(CA1, CAdist)
+
+}
+```
+
+write out iterations
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+write.table(CA1, file = 'CA_RandomSample_1000_CENPA_replicates_woconsensus.txt')
+write.table(PCA1, file = 'PCA_RandomSample_1000_CENPA_replicates_woconsensus.txt')
+```
+
+
+Compare top 1000 value to iterations
+runn top 1000 
+ranked by readscore then readcount
+scored by k-mers from replicates combined
+```{r}
+top1000.corpus <- load.corpus(files = "all", 
+                              corpus.dir = "/projects/dumont-lab/uma/CENPA_ChIP/readscore/stylo_replicates/joint_kmers_COUNT_SCORE",
+                              encoding = "UTF-8")
+
+```
+let's look at n-grams with grams being words and n = 1
+```{r}
+corpus.words.1.grams <- txt.to.features(top1000.corpus, 
+                                        ngram.size = 1,
+                                        features = "w")
+
+```
+These functions can produce a summary of all the n-grams in the form of a frequency list, 
+which is then used to make a frequency table
+```{r}
+frequency.list <- make.frequency.list(corpus.words.1.grams)
+
+frequency.list.value <- make.frequency.list(corpus.words.1.grams, value = TRUE)
+
+```
+
+This functions can produce a summary of all the n-grams in the form of a frequency table
+produces a stylo.data object
+```{r}
+frequency.list.table <- make.table.of.frequencies(corpus.words.1.grams, features = frequency.list)
+```
+
+```{r}
+PCA <- stylo(frequencies = frequency.list.table, 
+      analysis.type = "PCR",
+      custom.graph.title = "Strain Variation",
+      mfw.min = 4004, mfw.max = 4004,
+      gui = FALSE)
+
+
+PCAcoord <- as.data.frame(PCA$pca.coordinates)
+PCAcoord$STRAIN <- rownames(PCAcoord)
+PCAcoord %>% 
+   pivot_longer(-STRAIN, names_to = "sample", values_to = "PCaxis") -> PCAcoord
+   
+CA <- stylo(frequencies = frequency.list.table, 
+      analysis.type = "CA",
+      custom.graph.title = "Strain Variation Cluster",
+      mfw.min = 4004, mfw.max = 4004,
+      gui = FALSE)
+
+CA <- CA$distance.table
+```
+
+Read in iteration CA dataframe
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+CAiter <- read.table(file = 'CA_RandomSample_1000_CENPA_replicates_woconsensus.txt')
+```
+
+```{r}
+CAiter_sep <- separate(data = CAiter, col = STRAIN, into = c("clumpify","fastp","strain", "sex","replicate","rand"), sep = "_")
+
+CAiter_sep <- CAiter_sep[,c(3,4,5,7,8)]
+
+CAiter_sep <- separate(data = CAiter_sep, col = sample, into = c("clumpify","fastp","strain2", "sex2","replicate2","rand2"), sep = "_")
+
+CAiter_sep <- CAiter_sep[,c(1,2,3,6,7,8,10)]
+
+CAiter_sep$replicate = sub("CENPA.fastq.readscore.txt.firstcol.sample\\d{1,4}", "092920", CAiter_sep$replicate)
+
+CAiter_sep$replicate2 = sub("CENPA.fastq.readscore.txt.firstcol.sample\\d{1,4}", "092920", CAiter_sep$replicate2)
+
+CAiter_sep$SAMPLE1 <- paste(CAiter_sep$strain, CAiter_sep$sex, CAiter_sep$replicate, sep="_")
+CAiter_sep$SAMPLE2 <- paste(CAiter_sep$strain2, CAiter_sep$sex2, CAiter_sep$replicate2, sep="_")
+
+CAiter_sep <- CAiter_sep[,c(8,9,7)]
+colnames(CAiter_sep) <- c("strain","strain2","dist")
+
+```
+
+Make histograms of correlations
+
+B6_F_092920
+B6_M_092920
+CAST_F_011921
+CAST_M_011921
+CAST_M_101620
+LEWES_F_011921
+LEWES_F_012621
+LEWES_M_011921
+PWK_F_012621
+PWK_F_092920
+PWK_M_101620
+
+```{r}
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "B6_M_092920") %>%
+   filter(dist > 0.2186350) %>%
+   summarize(count = n()) -> pvalB61B62
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "B6_M_092920") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.2186350, colour = c("red")) -> B61B62
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "CAST_F_011921") %>%
+   filter(dist > 1.0020902) %>%
+   summarize(count = n()) -> pvalB61CAST1
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "CAST_F_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 1.0020902, colour = c("red")) -> B61CAST1
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "CAST_M_011921") %>%
+   filter(dist > 1.0184113) %>%
+   summarize(count = n()) -> pvalB61CAST2
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "CAST_M_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 1.0184113, colour = c("red")) -> B61CAST2
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "CAST_M_101620") %>%
+   filter(dist > 1.0439021) %>%
+   summarize(count = n()) -> pvalB61CAST3
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "CAST_M_101620") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 1.0439021, colour = c("red")) -> B61CAST3
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "LEWES_F_011921") %>%
+   filter(dist < 0.9440428) %>%
+   summarize(count = n()) -> pvalB61LEWES1
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "LEWES_F_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9440428, colour = c("red")) -> B61LEWES1
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "LEWES_F_012621") %>%
+   filter(dist < 0.9029450) %>%
+   summarize(count = n()) -> pvalB61LEWES2
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "LEWES_F_012621") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9029450, colour = c("red")) -> B61LEWES2
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "LEWES_M_011921") %>%
+   filter(dist < 0.9282998) %>%
+   summarize(count = n()) -> pvalB61LEWES3
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "LEWES_M_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9282998, colour = c("red")) -> B61LEWES3
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "PWK_F_012621") %>%
+   filter(dist > 1.0128208) %>%
+   summarize(count = n()) -> pvalB61PWK1
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 1.0128208, colour = c("red")) -> B61PWK1
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9978545) %>%
+   summarize(count = n()) -> pvalB61PWK2
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9978545, colour = c("red")) -> B61PWK2
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.9163277) %>%
+   summarize(count = n()) -> pvalB61PWK3
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9163277, colour = c("red")) -> B61PWK3
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "CAST_F_011921") %>%
+   filter(dist > 0.9495009) %>%
+   summarize(count = n()) -> pvalB62CAST1
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "CAST_F_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9495009, colour = c("red")) -> B62CAST1
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "CAST_M_011921") %>%
+   filter(dist > 0.9658220) %>%
+   summarize(count = n()) -> pvalB62CAST2
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "CAST_M_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9658220, colour = c("red")) -> B62CAST2
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "CAST_M_101620") %>%
+   filter(dist > 0.9913127) %>%
+   summarize(count = n()) -> pvalB62CAST3
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "CAST_M_101620") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9913127, colour = c("red")) -> B62CAST3
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "LEWES_F_011921") %>%
+   filter(dist < 0.8780208) %>%
+   summarize(count = n()) -> pvalB62LEWES1
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "LEWES_F_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.8780208, colour = c("red")) -> B62LEWES1
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "LEWES_F_012621") %>%
+   filter(dist < 0.8588954) %>%
+   summarize(count = n()) -> pvalB62LEWES2
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "LEWES_F_012621") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.8588954, colour = c("red")) -> B62LEWES2
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "LEWES_M_011921") %>%
+   filter(dist < 0.8624433) %>%
+   summarize(count = n()) -> pvalB62LEWES3
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "LEWES_M_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.8624433, colour = c("red")) -> B62LEWES3
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "PWK_F_012621") %>%
+   filter(dist > 0.9612215) %>%
+   summarize(count = n()) -> pvalB62PWK1
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9612215, colour = c("red")) -> B62PWK1
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9462552) %>%
+   summarize(count = n()) -> pvalB62PWK2
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9462552, colour = c("red")) -> B62PWK2
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.8647284) %>%
+   summarize(count = n()) -> pvalB62PWK3
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.8647284, colour = c("red")) -> B62PWK3
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "CAST_M_011921") %>%
+   filter(dist > 0.2356716) %>%
+   summarize(count = n()) -> pvalCAST1CAST2
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "CAST_M_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.2356716, colour = c("red")) -> CAST1CAST2
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "CAST_M_101620") %>%
+   filter(dist > 0.1881438) %>%
+   summarize(count = n()) -> pvalCAST1CAST3
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "CAST_M_101620") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.1881438, colour = c("red")) -> CAST1CAST3
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "LEWES_F_011921") %>%
+   filter(dist < 0.9924875) %>%
+   summarize(count = n()) -> pvalCAST1LEWES1
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "LEWES_F_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9924875, colour = c("red")) -> CAST1LEWES1
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "LEWES_F_012621") %>%
+   filter(dist < 0.9952053) %>%
+   summarize(count = n()) -> pvalCAST1LEWES2
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "LEWES_F_012621") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9952053, colour = c("red")) -> CAST1LEWES2
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "LEWES_M_011921") %>%
+   filter(dist < 0.9750024) %>%
+   summarize(count = n()) -> pvalCAST1LEWES3
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "LEWES_M_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9750024, colour = c("red")) -> CAST1LEWES3
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "PWK_F_012621") %>%
+   filter(dist > 0.9816326) %>%
+   summarize(count = n()) -> pvalCAST1PWK1
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9816326, colour = c("red")) -> CAST1PWK1
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9646069) %>%
+   summarize(count = n()) -> pvalCAST1PWK2
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9646069, colour = c("red")) -> CAST1PWK2
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.8860960) %>%
+   summarize(count = n()) -> pvalCAST1PWK3
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.8860960, colour = c("red")) -> CAST1PWK3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "CAST_M_101620") %>%
+   filter(dist > 0.2214048) %>%
+   summarize(count = n()) -> pvalCAST2CAST3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "CAST_M_101620") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.2214048, colour = c("red")) -> CAST2CAST3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "LEWES_F_011921") %>%
+   filter(dist < 1.0068285) %>%
+   summarize(count = n()) -> pvalCAST2LEWES1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "LEWES_F_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 1.0068285, colour = c("red")) -> CAST2LEWES1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "LEWES_F_012621") %>%
+   filter(dist < 1.0095464) %>%
+   summarize(count = n()) -> pvalCAST2LEWES2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "LEWES_F_012621") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 1.0095464, colour = c("red")) -> CAST2LEWES2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "LEWES_M_011921") %>%
+   filter(dist < 0.9893435) %>%
+   summarize(count = n()) -> pvalCAST2LEWES3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "LEWES_M_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9893435, colour = c("red")) -> CAST2LEWES3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "PWK_F_012621") %>%
+   filter(dist > 0.9939814) %>%
+   summarize(count = n()) -> pvalCAST2PWK1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9939814, colour = c("red")) -> CAST2PWK1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9723473) %>%
+   summarize(count = n()) -> pvalCAST2PWK2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9723473, colour = c("red")) -> CAST2PWK2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.8995141) %>%
+   summarize(count = n()) -> pvalCAST2PWK3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.8995141, colour = c("red")) -> CAST2PWK3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "LEWES_F_011921") %>%
+   filter(dist < 1.0342994) %>%
+   summarize(count = n()) -> pvalCAST3LEWES1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "LEWES_F_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 1.0342994, colour = c("red")) -> CAST3LEWES1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "LEWES_F_012621") %>%
+   filter(dist < 1.0357824) %>%
+   summarize(count = n()) -> pvalCAST3LEWES2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "LEWES_F_012621") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 1.0357824, colour = c("red")) -> CAST3LEWES2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "LEWES_M_011921") %>%
+   filter(dist < 1.0168143) %>%
+   summarize(count = n()) -> pvalCAST3LEWES3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "LEWES_M_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 1.0168143, colour = c("red")) -> CAST3LEWES3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "PWK_F_012621") %>%
+   filter(dist > 1.0204621) %>%
+   summarize(count = n()) -> pvalCAST3PWK1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 1.0204621, colour = c("red")) -> CAST3PWK1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9986627) %>%
+   summarize(count = n()) -> pvalCAST3PWK2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9986627, colour = c("red")) -> CAST3PWK2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.9259949) %>%
+   summarize(count = n()) -> pvalCAST3PWK3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9259949, colour = c("red")) -> CAST3PWK3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "LEWES_F_012621") %>%
+   filter(dist < 0.2767907) %>%
+   summarize(count = n()) -> pvalLEWES1LEWES2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "LEWES_F_012621") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.2767907, colour = c("red")) -> LEWES1LEWES2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "LEWES_M_011921") %>%
+   filter(dist < 0.1406890) %>%
+   summarize(count = n()) -> pvalLEWES1LEWES3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "LEWES_M_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.1406890, colour = c("red")) -> LEWES1LEWES3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "PWK_F_012621") %>%
+   filter(dist > 1.0080340) %>%
+   summarize(count = n()) -> pvalLEWES1PWK1
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 1.0080340, colour = c("red")) -> LEWES1PWK1
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9930677) %>%
+   summarize(count = n()) -> pvalLEWES1PWK2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9930677, colour = c("red")) -> LEWES1PWK2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.9115409) %>%
+   summarize(count = n()) -> pvalLEWES1PWK3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9115409, colour = c("red")) -> LEWES1PWK3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "LEWES_M_011921") %>%
+   filter(dist < 0.3409788) %>%
+   summarize(count = n()) -> pvalLEWES2LEWES3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "LEWES_M_011921") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.3409788, colour = c("red")) -> LEWES2LEWES3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "PWK_F_012621") %>%
+   filter(dist > 1.0107854) %>%
+   summarize(count = n()) -> pvalLEWES2PWK1
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 1.0107854, colour = c("red")) -> LEWES2PWK1
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9958191) %>%
+   summarize(count = n()) -> pvalLEWES2PWK2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9958191, colour = c("red")) -> LEWES2PWK2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.9142923) %>%
+   summarize(count = n()) -> pvalLEWES2PWK3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9142923, colour = c("red")) -> LEWES2PWK3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_M_011921", strain2 == "PWK_F_012621") %>%
+   filter(dist > 0.9915390) %>%
+   summarize(count = n()) -> pvalLEWES3PWK1
+
+CAiter_sep %>%
+   filter(strain == "LEWES_M_011921", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9915390, colour = c("red")) -> LEWES3PWK1
+
+CAiter_sep %>%
+   filter(strain == "LEWES_M_011921", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9765727) %>%
+   summarize(count = n()) -> pvalLEWES3PWK2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_M_011921", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.9765727, colour = c("red")) -> LEWES3PWK2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_M_011921", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.8950459) %>%
+   summarize(count = n()) -> pvalLEWES3PWK3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_M_011921", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.8950459, colour = c("red")) -> LEWES3PWK3
+
+CAiter_sep %>%
+   filter(strain == "PWK_F_012621", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.1653015) %>%
+   summarize(count = n()) -> pvalPWK1PWK2
+
+CAiter_sep %>%
+   filter(strain == "PWK_F_012621", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.1653015, colour = c("red")) -> PWK1PWK2
+
+CAiter_sep %>%
+   filter(strain == "PWK_F_012621", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.2745592) %>%
+   summarize(count = n()) -> pvalPWK1PWK3
+
+CAiter_sep %>%
+   filter(strain == "PWK_F_012621", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.2745592, colour = c("red")) -> PWK1PWK3
+
+CAiter_sep %>%
+   filter(strain == "PWK_F_092920", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.2386014) %>%
+   summarize(count = n()) -> pvalPWK2PWK3
+
+CAiter_sep %>%
+   filter(strain == "PWK_F_092920", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   geom_vline(xintercept = 0.2386014, colour = c("red")) -> PWK2PWK3
+
+
+```
+
+
+```{r}
+ggarrange(B61B62, B61CAST1, B61CAST2, B61CAST3, B61LEWES1, B61LEWES2, B61LEWES3, B61PWK1, B61PWK2, B61PWK3, B62CAST1, B62CAST2, B62CAST3, B62LEWES1, B62LEWES2, B62LEWES3, B62PWK1, B62PWK2, B62PWK3, CAST1CAST2, CAST1CAST3, CAST1LEWES1, CAST1LEWES2, CAST1LEWES3, CAST1PWK1, CAST1PWK2, CAST1PWK3, CAST2CAST3, CAST2LEWES1, CAST2LEWES2, CAST2LEWES3, CAST2PWK1, CAST2PWK2, CAST2PWK3, CAST3LEWES1, CAST3LEWES2, CAST3LEWES3, CAST3PWK1, CAST3PWK2, CAST3PWK3,LEWES1LEWES2, LEWES1LEWES3, LEWES1PWK1, LEWES1PWK2, LEWES1PWK3, LEWES2LEWES3, LEWES2PWK1, LEWES2PWK2, LEWES2PWK3, LEWES3PWK1, LEWES3PWK2, LEWES3PWK3, PWK1PWK2, PWK1PWK3, PWK2PWK3,
+          labels = c("B61 v B62","B61 v CAST1","B61 v CAST2","B61 v CAST3", "B61 v LEWES1", "B61 v LEWES2","B61 v LEWES3", "B61 v PWK1","B61 v PWK2","B61 v PWK3","B62 v CAST1","B62 v CAST2","B62 v CAST3", "B62 v LEWES1", "B62 v LEWES2","B62 v LEWES3", "B62 v PWK1","B62 v PWK2","B62 v PWK3","CAST1 v CAST2","CAST1 v CAST3", "CAST1 v LEWES1", "CAST1 v LEWES2","CAST1 v LEWES3", "CAST1 v PWK1","CAST1 v PWK2","CAST1 v PWK3", "CAST2 v CAST3", "CAST2 v LEWES1", "CAST2 v LEWES2","CAST2 v LEWES3", "CAST2 v PWK1","CAST2 v PWK2","CAST2 v PWK3",  "CAST3 v LEWES1", "CAST3 v LEWES2","CAST3 v LEWES3", "CAST3 v PWK1","CAST3 v PWK2","CAST3 v PWK3", "LEWES1 v LEWES2","LEWES1 v LEWES3", "LEWES1 v PWK1","LEWES1 v PWK2","LEWES1 v PWK3", "LEWES2 v LEWES3", "LEWES2 v PWK1","LEWES2 v PWK2","LEWES2 v PWK3", "LEWES3 v PWK1","LEWES3 v PWK2","LEWES3 v PWK3", "PWK1 v PWK2","PWK1 v PWK3", "PWK2 v PWK3"),
+          ncol = 10, nrow = 6)
+```
+
+########################################
+Plot CENP-A and input bootstrap together
+########################################
+
+Read in iteration CA dataframe
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+CENPA_CAiter <- read.table(file = 'CA_RandomSample_1000_CENPA_replicates_woconsensus.txt')
+CENPA_CAiter$TYPE <- c("CENPA")
+input_CAiter <-  read.table(file = 'CA_RandomSample_1000_input_replicates_woconsensus.txt')
+input_CAiter$TYPE <- c("Input")
+CAiter <- rbind(CENPA_CAiter, input_CAiter)
+
+```
+
+```{r}
+CAiter_sep <- separate(data = CAiter, col = STRAIN, into = c("clumpify","fastp","strain", "sex","replicate","rand"), sep = "_")
+
+CAiter_sep <- CAiter_sep[,c(3,4,5,7,8,9)]
+
+CAiter_sep <- separate(data = CAiter_sep, col = sample, into = c("clumpify","fastp","strain2", "sex2","replicate2","rand2"), sep = "_")
+
+CAiter_sep <- CAiter_sep[,c(1,2,3,6,7,8,10,11)]
+
+CAiter_sep$replicate = sub("CENPA.fastq.readscore.txt.firstcol.sample\\d{1,4}", "092920", CAiter_sep$replicate)
+CAiter_sep$replicate = sub("input.fastq.readscore.txt.firstcol.sample\\d{1,4}", "092920", CAiter_sep$replicate)
+
+CAiter_sep$replicate2 = sub("CENPA.fastq.readscore.txt.firstcol.sample\\d{1,4}", "092920", CAiter_sep$replicate2)
+CAiter_sep$replicate2 = sub("input.fastq.readscore.txt.firstcol.sample\\d{1,4}", "092920", CAiter_sep$replicate2)
+
+CAiter_sep$SAMPLE1 <- paste(CAiter_sep$strain, CAiter_sep$sex, CAiter_sep$replicate, sep="_")
+CAiter_sep$SAMPLE2 <- paste(CAiter_sep$strain2, CAiter_sep$sex2, CAiter_sep$replicate2, sep="_")
+
+CAiter_sep <- CAiter_sep[,c(9,10,7,8)]
+colnames(CAiter_sep) <- c("strain","strain2","dist","TYPE")
+
+```
+
+Make histograms of correlations
+
+B6_F_092920
+B6_M_092920
+CAST_F_011921
+CAST_M_011921
+CAST_M_101620
+LEWES_F_011921
+LEWES_F_012621
+LEWES_M_011921
+PWK_F_012621
+PWK_F_092920
+PWK_M_101620
+
+```{r}
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "B6_M_092920") %>%
+   filter(dist > 0.2186350) %>%
+   summarize(count = n()) -> pvalB61B62
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "B6_M_092920") %>%
+   ggplot(aes(x = dist, fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   theme_classic() +
+   geom_vline(xintercept = 0.2186350, colour = c("red")) -> B61B62
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "CAST_F_011921") %>%
+   filter(dist > 1.0020902) %>%
+   summarize(count = n()) -> pvalB61CAST1
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "CAST_F_011921") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 1.0020902, colour = c("red")) -> B61CAST1
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "CAST_M_011921") %>%
+   filter(dist > 1.0184113) %>%
+   summarize(count = n()) -> pvalB61CAST2
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "CAST_M_011921") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 1.0184113, colour = c("red")) -> B61CAST2
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "CAST_M_101620") %>%
+   filter(dist > 1.0439021) %>%
+   summarize(count = n()) -> pvalB61CAST3
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "CAST_M_101620") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 1.0439021, colour = c("red")) -> B61CAST3
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "LEWES_F_011921") %>%
+   filter(dist < 0.9440428) %>%
+   summarize(count = n()) -> pvalB61LEWES1
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "LEWES_F_011921") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9440428, colour = c("red")) -> B61LEWES1
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "LEWES_F_012621") %>%
+   filter(dist < 0.9029450) %>%
+   summarize(count = n()) -> pvalB61LEWES2
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "LEWES_F_012621") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9029450, colour = c("red")) -> B61LEWES2
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "LEWES_M_011921") %>%
+   filter(dist < 0.9282998) %>%
+   summarize(count = n()) -> pvalB61LEWES3
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "LEWES_M_011921") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9282998, colour = c("red")) -> B61LEWES3
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "PWK_F_012621") %>%
+   filter(dist > 1.0128208) %>%
+   summarize(count = n()) -> pvalB61PWK1
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 1.0128208, colour = c("red")) -> B61PWK1
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9978545) %>%
+   summarize(count = n()) -> pvalB61PWK2
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9978545, colour = c("red")) -> B61PWK2
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.9163277) %>%
+   summarize(count = n()) -> pvalB61PWK3
+
+CAiter_sep %>%
+   filter(strain == "B6_F_092920", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9163277, colour = c("red")) -> B61PWK3
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "CAST_F_011921") %>%
+   filter(dist > 0.9495009) %>%
+   summarize(count = n()) -> pvalB62CAST1
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "CAST_F_011921") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9495009, colour = c("red")) -> B62CAST1
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "CAST_M_011921") %>%
+   filter(dist > 0.9658220) %>%
+   summarize(count = n()) -> pvalB62CAST2
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "CAST_M_011921") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9658220, colour = c("red")) -> B62CAST2
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "CAST_M_101620") %>%
+   filter(dist > 0.9913127) %>%
+   summarize(count = n()) -> pvalB62CAST3
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "CAST_M_101620") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9913127, colour = c("red")) -> B62CAST3
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "LEWES_F_011921") %>%
+   filter(dist < 0.8780208) %>%
+   summarize(count = n()) -> pvalB62LEWES1
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "LEWES_F_011921") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.8780208, colour = c("red")) -> B62LEWES1
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "LEWES_F_012621") %>%
+   filter(dist < 0.8588954) %>%
+   summarize(count = n()) -> pvalB62LEWES2
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "LEWES_F_012621") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.8588954, colour = c("red")) -> B62LEWES2
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "LEWES_M_011921") %>%
+   filter(dist < 0.8624433) %>%
+   summarize(count = n()) -> pvalB62LEWES3
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "LEWES_M_011921") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.8624433, colour = c("red")) -> B62LEWES3
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "PWK_F_012621") %>%
+   filter(dist > 0.9612215) %>%
+   summarize(count = n()) -> pvalB62PWK1
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9612215, colour = c("red")) -> B62PWK1
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9462552) %>%
+   summarize(count = n()) -> pvalB62PWK2
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9462552, colour = c("red")) -> B62PWK2
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.8647284) %>%
+   summarize(count = n()) -> pvalB62PWK3
+
+CAiter_sep %>%
+   filter(strain == "B6_M_092920", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.8647284, colour = c("red")) -> B62PWK3
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "CAST_M_011921") %>%
+   filter(dist > 0.2356716) %>%
+   summarize(count = n()) -> pvalCAST1CAST2
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "CAST_M_011921") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.2356716, colour = c("red")) -> CAST1CAST2
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "CAST_M_101620") %>%
+   filter(dist > 0.1881438) %>%
+   summarize(count = n()) -> pvalCAST1CAST3
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "CAST_M_101620") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.1881438, colour = c("red")) -> CAST1CAST3
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "LEWES_F_011921") %>%
+   filter(dist < 0.9924875) %>%
+   summarize(count = n()) -> pvalCAST1LEWES1
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "LEWES_F_011921") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9924875, colour = c("red")) -> CAST1LEWES1
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "LEWES_F_012621") %>%
+   filter(dist < 0.9952053) %>%
+   summarize(count = n()) -> pvalCAST1LEWES2
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "LEWES_F_012621") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9952053, colour = c("red")) -> CAST1LEWES2
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "LEWES_M_011921") %>%
+   filter(dist < 0.9750024) %>%
+   summarize(count = n()) -> pvalCAST1LEWES3
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "LEWES_M_011921") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9750024, colour = c("red")) -> CAST1LEWES3
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "PWK_F_012621") %>%
+   filter(dist > 0.9816326) %>%
+   summarize(count = n()) -> pvalCAST1PWK1
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9816326, colour = c("red")) -> CAST1PWK1
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9646069) %>%
+   summarize(count = n()) -> pvalCAST1PWK2
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9646069, colour = c("red")) -> CAST1PWK2
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.8860960) %>%
+   summarize(count = n()) -> pvalCAST1PWK3
+
+CAiter_sep %>%
+   filter(strain == "CAST_F_011921", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.8860960, colour = c("red")) -> CAST1PWK3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "CAST_M_101620") %>%
+   filter(dist > 0.2214048) %>%
+   summarize(count = n()) -> pvalCAST2CAST3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "CAST_M_101620") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.2214048, colour = c("red")) -> CAST2CAST3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "LEWES_F_011921") %>%
+   filter(dist < 1.0068285) %>%
+   summarize(count = n()) -> pvalCAST2LEWES1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "LEWES_F_011921") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 1.0068285, colour = c("red")) -> CAST2LEWES1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "LEWES_F_012621") %>%
+   filter(dist < 1.0095464) %>%
+   summarize(count = n()) -> pvalCAST2LEWES2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "LEWES_F_012621") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 1.0095464, colour = c("red")) -> CAST2LEWES2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "LEWES_M_011921") %>%
+   filter(dist < 0.9893435) %>%
+   summarize(count = n()) -> pvalCAST2LEWES3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "LEWES_M_011921") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9893435, colour = c("red")) -> CAST2LEWES3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "PWK_F_012621") %>%
+   filter(dist > 0.9939814) %>%
+   summarize(count = n()) -> pvalCAST2PWK1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist, fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9939814, colour = c("red")) -> CAST2PWK1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9723473) %>%
+   summarize(count = n()) -> pvalCAST2PWK2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9723473, colour = c("red")) -> CAST2PWK2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.8995141) %>%
+   summarize(count = n()) -> pvalCAST2PWK3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_011921", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.8995141, colour = c("red")) -> CAST2PWK3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "LEWES_F_011921") %>%
+   filter(dist < 1.0342994) %>%
+   summarize(count = n()) -> pvalCAST3LEWES1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "LEWES_F_011921") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 1.0342994, colour = c("red")) -> CAST3LEWES1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "LEWES_F_012621") %>%
+   filter(dist < 1.0357824) %>%
+   summarize(count = n()) -> pvalCAST3LEWES2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "LEWES_F_012621") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 1.0357824, colour = c("red")) -> CAST3LEWES2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "LEWES_M_011921") %>%
+   filter(dist < 1.0168143) %>%
+   summarize(count = n()) -> pvalCAST3LEWES3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "LEWES_M_011921") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 1.0168143, colour = c("red")) -> CAST3LEWES3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "PWK_F_012621") %>%
+   filter(dist > 1.0204621) %>%
+   summarize(count = n()) -> pvalCAST3PWK1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 1.0204621, colour = c("red")) -> CAST3PWK1
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9986627) %>%
+   summarize(count = n()) -> pvalCAST3PWK2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9986627, colour = c("red")) -> CAST3PWK2
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.9259949) %>%
+   summarize(count = n()) -> pvalCAST3PWK3
+
+CAiter_sep %>%
+   filter(strain == "CAST_M_101620", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9259949, colour = c("red")) -> CAST3PWK3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "LEWES_F_012621") %>%
+   filter(dist < 0.2767907) %>%
+   summarize(count = n()) -> pvalLEWES1LEWES2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "LEWES_F_012621") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.2767907, colour = c("red")) -> LEWES1LEWES2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "LEWES_M_011921") %>%
+   filter(dist < 0.1406890) %>%
+   summarize(count = n()) -> pvalLEWES1LEWES3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "LEWES_M_011921") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.1406890, colour = c("red")) -> LEWES1LEWES3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "PWK_F_012621") %>%
+   filter(dist > 1.0080340) %>%
+   summarize(count = n()) -> pvalLEWES1PWK1
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 1.0080340, colour = c("red")) -> LEWES1PWK1
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9930677) %>%
+   summarize(count = n()) -> pvalLEWES1PWK2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9930677, colour = c("red")) -> LEWES1PWK2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.9115409) %>%
+   summarize(count = n()) -> pvalLEWES1PWK3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_011921", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9115409, colour = c("red")) -> LEWES1PWK3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "LEWES_M_011921") %>%
+   filter(dist < 0.3409788) %>%
+   summarize(count = n()) -> pvalLEWES2LEWES3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "LEWES_M_011921") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.3409788, colour = c("red")) -> LEWES2LEWES3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "PWK_F_012621") %>%
+   filter(dist > 1.0107854) %>%
+   summarize(count = n()) -> pvalLEWES2PWK1
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 1.0107854, colour = c("red")) -> LEWES2PWK1
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9958191) %>%
+   summarize(count = n()) -> pvalLEWES2PWK2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9958191, colour = c("red")) -> LEWES2PWK2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.9142923) %>%
+   summarize(count = n()) -> pvalLEWES2PWK3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_F_012621", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9142923, colour = c("red")) -> LEWES2PWK3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_M_011921", strain2 == "PWK_F_012621") %>%
+   filter(dist > 0.9915390) %>%
+   summarize(count = n()) -> pvalLEWES3PWK1
+
+CAiter_sep %>%
+   filter(strain == "LEWES_M_011921", strain2 == "PWK_F_012621") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9915390, colour = c("red")) -> LEWES3PWK1
+
+CAiter_sep %>%
+   filter(strain == "LEWES_M_011921", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.9765727) %>%
+   summarize(count = n()) -> pvalLEWES3PWK2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_M_011921", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.9765727, colour = c("red")) -> LEWES3PWK2
+
+CAiter_sep %>%
+   filter(strain == "LEWES_M_011921", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.8950459) %>%
+   summarize(count = n()) -> pvalLEWES3PWK3
+
+CAiter_sep %>%
+   filter(strain == "LEWES_M_011921", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.8950459, colour = c("red")) -> LEWES3PWK3
+
+CAiter_sep %>%
+   filter(strain == "PWK_F_012621", strain2 == "PWK_F_092920") %>%
+   filter(dist > 0.1653015) %>%
+   summarize(count = n()) -> pvalPWK1PWK2
+
+CAiter_sep %>%
+   filter(strain == "PWK_F_012621", strain2 == "PWK_F_092920") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.1653015, colour = c("red")) -> PWK1PWK2
+
+CAiter_sep %>%
+   filter(strain == "PWK_F_012621", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.2745592) %>%
+   summarize(count = n()) -> pvalPWK1PWK3
+
+CAiter_sep %>%
+   filter(strain == "PWK_F_012621", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist,fill = TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.2745592, colour = c("red")) -> PWK1PWK3
+
+CAiter_sep %>%
+   filter(strain == "PWK_F_092920", strain2 == "PWK_M_101620") %>%
+   filter(dist > 0.2386014) %>%
+   summarize(count = n()) -> pvalPWK2PWK3
+
+CAiter_sep %>%
+   filter(strain == "PWK_F_092920", strain2 == "PWK_M_101620") %>%
+   ggplot(aes(x = dist,fill=TYPE)) +
+   geom_histogram(bins = 100) +
+   theme_classic() +
+   scale_fill_manual(values = c("#FD006C","#AAAAAA")) +
+   geom_vline(xintercept = 0.2386014, colour = c("red")) -> PWK2PWK3
+
+
+```
+
+
+```{r}
+ggarrange(B61B62 + rremove("ylab") + rremove("xlab"), 
+          B61CAST1 + rremove("ylab") + rremove("xlab"), 
+          B61CAST2 + rremove("ylab") + rremove("xlab"), 
+          B61CAST3 + rremove("ylab") + rremove("xlab"), 
+          B61LEWES1 + rremove("ylab") + rremove("xlab"), 
+          B61LEWES2 + rremove("ylab") + rremove("xlab"), 
+          B61LEWES3 + rremove("ylab") + rremove("xlab"), 
+          B61PWK1 + rremove("ylab") + rremove("xlab"), 
+          B61PWK2 + rremove("ylab") + rremove("xlab"), 
+          B61PWK3 + rremove("ylab") + rremove("xlab"), 
+          B62CAST1 + rremove("ylab") + rremove("xlab"), 
+          B62CAST2 + rremove("ylab") + rremove("xlab"), 
+          B62CAST3 + rremove("ylab") + rremove("xlab"), 
+          B62LEWES1 + rremove("ylab") + rremove("xlab"), 
+          B62LEWES2 + rremove("ylab") + rremove("xlab"), 
+          B62LEWES3 + rremove("ylab") + rremove("xlab"), 
+          B62PWK1 + rremove("ylab") + rremove("xlab"), 
+          B62PWK2 + rremove("ylab") + rremove("xlab"), 
+          B62PWK3 + rremove("ylab") + rremove("xlab"), 
+          CAST1CAST2 + rremove("ylab") + rremove("xlab"), 
+          CAST1CAST3 + rremove("ylab") + rremove("xlab"), 
+          CAST1LEWES1 + rremove("ylab") + rremove("xlab"), 
+          CAST1LEWES2 + rremove("ylab") + rremove("xlab"), 
+          CAST1LEWES3 + rremove("ylab") + rremove("xlab"), 
+          CAST1PWK1 + rremove("ylab") + rremove("xlab"), 
+          CAST1PWK2 + rremove("ylab") + rremove("xlab"), 
+          CAST1PWK3 + rremove("ylab") + rremove("xlab"), 
+          CAST2CAST3 + rremove("ylab") + rremove("xlab"), 
+          CAST2LEWES1 + rremove("ylab") + rremove("xlab"), 
+          CAST2LEWES2 + rremove("ylab") + rremove("xlab"), 
+          CAST2LEWES3 + rremove("ylab") + rremove("xlab"), 
+          CAST2PWK1 + rremove("ylab") + rremove("xlab"), 
+          CAST2PWK2 + rremove("ylab") + rremove("xlab"), 
+          CAST2PWK3 + rremove("ylab") + rremove("xlab"), 
+          CAST3LEWES1 + rremove("ylab") + rremove("xlab"), 
+          CAST3LEWES2 + rremove("ylab") + rremove("xlab"), 
+          CAST3LEWES3 + rremove("ylab") + rremove("xlab"), 
+          CAST3PWK1 + rremove("ylab") + rremove("xlab"), 
+          CAST3PWK2 + rremove("ylab") + rremove("xlab"), 
+          CAST3PWK3 + rremove("ylab") + rremove("xlab"),
+          LEWES1LEWES2 + rremove("ylab") + rremove("xlab"), 
+          LEWES1LEWES3 + rremove("ylab") + rremove("xlab"), 
+          LEWES1PWK1 + rremove("ylab") + rremove("xlab"), 
+          LEWES1PWK2 + rremove("ylab") + rremove("xlab"), 
+          LEWES1PWK3 + rremove("ylab") + rremove("xlab"), 
+          LEWES2LEWES3 + rremove("ylab") + rremove("xlab"), 
+          LEWES2PWK1 + rremove("ylab") + rremove("xlab"), 
+          LEWES2PWK2 + rremove("ylab") + rremove("xlab"), 
+          LEWES2PWK3 + rremove("ylab") + rremove("xlab"), 
+          LEWES3PWK1 + rremove("ylab") + rremove("xlab"), 
+          LEWES3PWK2 + rremove("ylab") + rremove("xlab"), 
+          LEWES3PWK3 + rremove("ylab") + rremove("xlab"), 
+          PWK1PWK2 + rremove("ylab") + rremove("xlab"), 
+          PWK1PWK3 + rremove("ylab") + rremove("xlab"), 
+          PWK2PWK3 + rremove("ylab") + rremove("xlab"),
+          labels = c("B61 v B62","B61 v CAST1","B61 v CAST2","B61 v CAST3", "B61 v LEWES1", "B61 v LEWES2","B61 v LEWES3", "B61 v PWK1","B61 v PWK2","B61 v PWK3","B62 v CAST1","B62 v CAST2","B62 v CAST3", "B62 v LEWES1", "B62 v LEWES2","B62 v LEWES3", "B62 v PWK1","B62 v PWK2","B62 v PWK3","CAST1 v CAST2","CAST1 v CAST3", "CAST1 v LEWES1", "CAST1 v LEWES2","CAST1 v LEWES3", "CAST1 v PWK1","CAST1 v PWK2","CAST1 v PWK3", "CAST2 v CAST3", "CAST2 v LEWES1", "CAST2 v LEWES2","CAST2 v LEWES3", "CAST2 v PWK1","CAST2 v PWK2","CAST2 v PWK3",  "CAST3 v LEWES1", "CAST3 v LEWES2","CAST3 v LEWES3", "CAST3 v PWK1","CAST3 v PWK2","CAST3 v PWK3", "LEWES1 v LEWES2","LEWES1 v LEWES3", "LEWES1 v PWK1","LEWES1 v PWK2","LEWES1 v PWK3", "LEWES2 v LEWES3", "LEWES2 v PWK1","LEWES2 v PWK2","LEWES2 v PWK3", "LEWES3 v PWK1","LEWES3 v PWK2","LEWES3 v PWK3", "PWK1 v PWK2","PWK1 v PWK3", "PWK2 v PWK3"),
+          common.legend = TRUE, legend = "bottom", 
+          ncol = 10, nrow = 6)
+
+annotate_figure(left = textGrob("Frequency (y-axis)", rot = 90, vjust = 1, gp = gpar(cex = 1.3)),
+                    bottom = textGrob("Replicate Distance (x-axis)", gp = gpar(cex = 1.3)))
+```
+

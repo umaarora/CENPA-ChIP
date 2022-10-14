@@ -1,0 +1,2411 @@
+---
+title: "ChIP_MappedReads_Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(matrixStats)
+library(tidyr)
+```
+
+Filter fastq reads with fastp
+```{bash}
+#!/bin/sh
+
+#SBATCH -o %j.out # STDOUT
+#SBATCH -e %j.err # STDERR
+#SBATCH --mem 200G
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=72:00:00
+
+##Load required modules
+module load singularity
+
+##Loop through directories
+cd /fastscratch/uma/IwataOtsubo
+#cd /fastscratch/uma/
+#while read directory; do
+#cd /fastscratch/uma/"$directory"
+#echo "entered $directory"
+        ##Within each directory, perform fastp functions on each fastq file
+        #fastp for trimming and fastqc
+        for fastq in *.fastq; do
+                echo "$fastq"
+                mkdir "$fastq"_dir
+                mv "$fastq" "$fastq"_dir
+                cd "$fastq"_dir
+                singularity exec /home/arorau/fastp/fastp.sif fastp -i /fastscratch/uma/IwataOtsubo/"$fastq"_dir/"$fastq" -o /fastscratch/uma/IwataOtsubo/"$fastq"_dir/fastp_"$fastq"
+                #singularity exec /home/arorau/fastp/fastp.sif fastp -i /fastscratch/uma/"$directory"/"$fastqgz"_dir/"$fastqgz" -o /fastscratch/uma/"$directory"/"$fastqgz"_dir/fastp$
+                #cd /fastscratch/uma/"$directory"
+                cd /fastscratch/uma/IwataOtsubo
+        done
+#done < /projects/dumont-lab/uma/CENPA_ChIP/scripts/directories2.txt
+
+echo "job complete"
+```
+
+map reads to centromere consensus sequences
+
+
+R ANALYSIS STARTS HERE
+Read in mapped reads as a dataframe
+```{r}
+
+B6_F_092920_CENPA <- read.delim(file = "fastp_B6_F_092920_CENPA_Forward.sam", header = FALSE)
+
+B6_F_092920_CENPA <- B6_F_092920_CENPA[!grepl("N",B6_F_092920_CENPA$V10),]
+
+reads_grouped <- B6_F_092920_CENPA %>% group_by(V10, V3) %>% summarise(n()) 
+
+rm(B6_F_092920_CENPA)
+
+
+B6_F_092920_H3K4me3 <- read.delim(file = "fastp_B6_F_092920_H3K4me3_Forward.sam", header = FALSE)
+
+B6_F_092920_H3K4me3 <- B6_F_092920_H3K4me3[!grepl("N",B6_F_092920_H3K4me3$V10),]
+
+reads_grouped_2 <- B6_F_092920_H3K4me3 %>% group_by(V10, V3) %>% summarise(n()) 
+
+merged <- merge(reads_grouped, reads_grouped_2, by = c("V10","V3"), all = TRUE)
+
+rm(B6_F_092920_H3K4me3)
+
+
+B6_F_092920_IgG <- read.delim(file = "fastp_B6_F_092920_IgG_Forward.sam", header = FALSE)
+
+B6_F_092920_IgG <- B6_F_092920_IgG[!grepl("N",B6_F_092920_IgG$V10),]
+
+reads_grouped <- B6_F_092920_IgG %>% group_by(V10, V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(B6_F_092920_IgG)
+
+
+B6_F_092920_input <- read.delim(file = "fastp_B6_F_092920_input_Forward.sam", header = FALSE)
+
+B6_F_092920_input <- B6_F_092920_input[!grepl("N",B6_F_092920_input$V10),]
+
+reads_grouped <- B6_F_092920_input %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(B6_F_092920_input)
+
+
+B6_M_CENPA <- read.delim(file = "fastp_B6_M_CENPA_Forward.sam", header = FALSE)
+
+B6_M_CENPA <- B6_M_CENPA[!grepl("N",B6_M_CENPA$V10),]
+
+reads_grouped <- B6_M_CENPA %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(B6_M_CENPA)
+
+
+CAST_F_011921_CENPA <- read.delim(file = "fastp_CAST_F_011921_CENPA_Forward.sam", header = FALSE)
+
+CAST_F_011921_CENPA <- CAST_F_011921_CENPA[!grepl("N",CAST_F_011921_CENPA$V10),]
+
+reads_grouped <- CAST_F_011921_CENPA %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(CAST_F_011921_CENPA)
+
+
+CAST_F_011921_H3K4me3 <- read.delim(file = "fastp_CAST_F_011921_H3K4me3_Forward.sam", header = FALSE)
+
+CAST_F_011921_H3K4me3 <- CAST_F_011921_H3K4me3[!grepl("N",CAST_F_011921_H3K4me3$V10),]
+
+reads_grouped <- CAST_F_011921_H3K4me3 %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(CAST_F_011921_H3K4me3)
+
+
+CAST_F_011921_IgG <- read.delim(file = "fastp_CAST_F_011921_IgG_Forward.sam", header = FALSE)
+
+CAST_F_011921_IgG <- CAST_F_011921_IgG[!grepl("N",CAST_F_011921_IgG$V10),]
+
+reads_grouped <- CAST_F_011921_IgG %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(CAST_F_011921_IgG)
+
+
+CAST_F_011921_input <- read.delim(file = "fastp_CAST_F_011921_input_Forward.sam", header = FALSE)
+
+CAST_F_011921_input <- CAST_F_011921_input[!grepl("N",CAST_F_011921_input$V10),]
+
+reads_grouped <- CAST_F_011921_input %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(CAST_F_011921_input)
+
+
+CAST_M_011921_CENPA <- read.delim(file = "fastp_CAST_M_011921_CENPA_Forward.sam", header = FALSE)
+
+CAST_M_011921_CENPA <- CAST_M_011921_CENPA[!grepl("N",CAST_M_011921_CENPA$V10),]
+
+reads_grouped <- CAST_M_011921_CENPA %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(CAST_M_011921_CENPA)
+
+
+
+CAST_M_101620_CENPA <- read.delim(file = "fastp_CAST_M_101620_CENPA_Forward.sam", header = FALSE)
+
+CAST_M_101620_CENPA <- CAST_M_101620_CENPA[!grepl("N",CAST_M_101620_CENPA$V10),]
+
+reads_grouped <- CAST_M_101620_CENPA %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(CAST_M_101620_CENPA)
+
+#colnames(merged) <- c("V10","B6_F_092920_CENPA","B6_F_092920_H3K4me3","B6_F_092920_IgG","B6_F_092920_input","B6_M_CENPA","CAST_F_011921_CENPA","CAST_F_011921_H3K4me3","CAST_F_011921_IgG","CAST_F_011921_input","CAST_M_011921_CENPA","CAST_M_101620_CENPA")
+
+
+#write.table(merged , file = "ChIP_Forward_mapped_v1.txt", row.names = FALSE, quote = FALSE)
+
+#Continue
+LEWES_F_011921_CENPA <- read.delim(file = "fastp_LEWES_F_011921_CENPA_Forward.sam", header = FALSE)
+
+LEWES_F_011921_CENPA <- LEWES_F_011921_CENPA[!grepl("N",LEWES_F_011921_CENPA$V10),]
+
+reads_grouped <- LEWES_F_011921_CENPA %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(LEWES_F_011921_CENPA)
+
+LEWES_F_012621_CENPA <- read.delim(file = "fastp_LEWES_F_012621_CENPA_Forward.sam", header = FALSE)
+
+LEWES_F_012621_CENPA <- LEWES_F_012621_CENPA[!grepl("N",LEWES_F_012621_CENPA$V10),]
+
+reads_grouped <- LEWES_F_012621_CENPA %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(LEWES_F_012621_CENPA)
+
+
+#####
+LEWES_F_012621_H3K4me3 <- read.delim(file = "fastp_LEWES_F_012621_H3K4me3_Forward.sam", header = FALSE)
+
+LEWES_F_012621_H3K4me3 <- LEWES_F_012621_H3K4me3[!grepl("N",LEWES_F_012621_H3K4me3$V10),]
+
+reads_grouped <- LEWES_F_012621_H3K4me3 %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(LEWES_F_012621_H3K4me3)
+
+
+
+LEWES_F_012621_IgG <- read.delim(file = "fastp_LEWES_F_012621_IgG_Forward.sam", header = FALSE)
+
+LEWES_F_012621_IgG <- LEWES_F_012621_IgG[!grepl("N",LEWES_F_012621_IgG$V10),]
+
+reads_grouped <- LEWES_F_012621_IgG %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(LEWES_F_012621_IgG)
+
+
+
+LEWES_F_012621_input <- read.delim(file = "fastp_LEWES_F_012621_input_Forward.sam", header = FALSE)
+
+LEWES_F_012621_input <- LEWES_F_012621_input[!grepl("N",LEWES_F_012621_input$V10),]
+
+reads_grouped <- LEWES_F_012621_input %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(LEWES_F_012621_input)
+
+
+
+LEWES_M_011921_CENPA <- read.delim(file = "fastp_LEWES_M_011921_CENPA_Forward.sam", header = FALSE)
+
+LEWES_M_011921_CENPA <- LEWES_M_011921_CENPA[!grepl("N",LEWES_M_011921_CENPA$V10),]
+
+reads_grouped <- LEWES_M_011921_CENPA %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(LEWES_M_011921_CENPA)
+
+
+####
+
+PWK_F_012621_CENPA <- read.delim(file = "fastp_PWK_F_012621_CENPA_Forward.sam", header = FALSE)
+
+PWK_F_012621_CENPA <- PWK_F_012621_CENPA[!grepl("N",PWK_F_012621_CENPA$V10),]
+
+reads_grouped <- PWK_F_012621_CENPA %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(PWK_F_012621_CENPA)
+
+##
+
+PWK_F_092920_CENPA <- read.delim(file = "fastp_PWK_F_092920_CENPA_Forward.sam", header = FALSE)
+
+PWK_F_092920_CENPA <- PWK_F_092920_CENPA[!grepl("N",PWK_F_092920_CENPA$V10),]
+
+reads_grouped <- PWK_F_092920_CENPA %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(PWK_F_092920_CENPA)
+
+##
+
+PWK_F_092920_H3K4me3 <- read.delim(file = "fastp_PWK_F_092920_H3K4me3_Forward.sam", header = FALSE)
+
+PWK_F_092920_H3K4me3 <- PWK_F_092920_H3K4me3[!grepl("N",PWK_F_092920_H3K4me3$V10),]
+
+reads_grouped <- PWK_F_092920_H3K4me3 %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(PWK_F_092920_H3K4me3)
+
+
+PWK_F_092920_IgG <- read.delim(file = "fastp_PWK_F_092920_IgG_Forward.sam", header = FALSE)
+
+PWK_F_092920_IgG <- PWK_F_092920_IgG[!grepl("N",PWK_F_092920_IgG$V10),]
+
+reads_grouped <- PWK_F_092920_IgG %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(PWK_F_092920_IgG)
+
+
+PWK_F_092920_input <- read.delim(file = "fastp_PWK_F_092920_input_Forward.sam", header = FALSE)
+
+PWK_F_092920_input <- PWK_F_092920_input[!grepl("N",PWK_F_092920_input$V10),]
+
+reads_grouped <- PWK_F_092920_input %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(PWK_F_092920_input)
+
+
+PWK_M_101620_CENPA <- read.delim(file = "fastp_PWK_M_101620_CENPA_Forward.sam", header = FALSE)
+
+PWK_M_101620_CENPA <- PWK_M_101620_CENPA[!grepl("N",PWK_M_101620_CENPA$V10),]
+
+reads_grouped <- PWK_M_101620_CENPA %>% group_by(V10,V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(PWK_M_101620_CENPA)
+
+
+####
+colnames(merged) <- c("V10","V3","B6_F_092920_CENPA","B6_F_092920_H3K4me3","B6_F_092920_IgG","B6_F_092920_input","B6_M_CENPA","CAST_F_011921_CENPA","CAST_F_011921_H3K4me3","CAST_F_011921_IgG","CAST_F_011921_input","CAST_M_011921_CENPA","CAST_M_101620_CENPA","LEWES_F_011921_CENPA","LEWES_F_012621_CENPA","LEWES_F_012621_H3K4me3","LEWES_F_012621_IgG","LEWES_F_012621_input","LEWES_M_011921_CENPA","PWK_F_012621_CENPA","PWK_F_092920_CENPA","PWK_F_092920_H3K4me3","PWK_F_092920_IgG","PWK_F_092920_input","PWK_M_101620_CENPA")
+
+#write.table(merged , file = "ChIP_Forward_mapped_SatSeparated.txt", row.names = FALSE)
+#write.table(merged , file = "ChIP_Forward_mapped_SatSeparated_noquotes.txt", row.names = FALSE, quote = FALSE)
+
+
+#replace NA with 0
+merged[is.na(merged)] <- 0
+
+```
+
+##normalize by fastq reads
+```{r}
+merged[,3] <- merged[,3]/36284747
+merged[,4] <- merged[,4]/46140564
+merged[,5] <- merged[,5]/32480607
+merged[,6] <- merged[,6]/37576170
+merged[,7] <- merged[,7]/32449473
+merged[,8] <- merged[,8]/35730081
+merged[,9] <- merged[,9]/38379102
+merged[,10] <- merged[,10]/29236758
+merged[,11] <- merged[,11]/40734310
+merged[,12] <- merged[,12]/31774370
+merged[,13] <- merged[,13]/33540289
+merged[,14] <- merged[,14]/35230558
+merged[,15] <- merged[,15]/35383719
+merged[,16] <- merged[,16]/38128503
+merged[,17] <- merged[,17]/28396592
+merged[,18] <- merged[,18]/38834086
+merged[,19] <- merged[,19]/36536220
+merged[,20] <- merged[,20]/40124760
+merged[,21] <- merged[,21]/30662613
+merged[,22] <- merged[,22]/43875526
+merged[,23] <- merged[,23]/26639128
+merged[,24] <- merged[,24]/42905518
+merged[,25] <- merged[,25]/29369587
+```
+
+Create a sum column
+```{r}
+merged$sum <- rowSums(merged[,3:25])
+
+write.table(merged , file = "ChIP_Forward_mapped_normalized_SatSeparated.txt", row.names = FALSE)
+```
+
+Add remaining input sasmples recieved 5/7/21
+```{r cars}
+setwd("/projects/dumont-lab/uma/centromere_mapping/CENPA_ChIP")
+merged <- read.table(file = "ChIP_Forward_mapped_normalized_SatSeparated.txt", header = TRUE)
+merged <- merged[,-26]
+
+setwd("/projects/dumont-lab/uma/centromere_mapping/files")
+B6_M_input <- read.delim(file = "fastp_B6_M_input_Forward.sam", header = FALSE)
+
+B6_M_input <- B6_M_input[!grepl("N",B6_M_input$V10),]
+
+reads_grouped <- B6_M_input %>% group_by(V10, V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(B6_M_input)
+
+```
+
+
+```{r}
+setwd("/projects/dumont-lab/uma/centromere_mapping/files")
+CAST_M_011921_input <- read.delim(file = "fastp_CAST_M_011921_input_Forward.sam", header = FALSE)
+
+CAST_M_011921_input <- CAST_M_011921_input[!grepl("N",CAST_M_011921_input$V10),]
+
+reads_grouped <- CAST_M_011921_input %>% group_by(V10, V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(CAST_M_011921_input)
+```
+
+```{r}
+setwd("/projects/dumont-lab/uma/centromere_mapping/files")
+CAST_M_101620_input <- read.delim(file = "fastp_CAST_M_101620_input_Forward.sam", header = FALSE)
+
+CAST_M_101620_input <- CAST_M_101620_input[!grepl("N",CAST_M_101620_input$V10),]
+
+reads_grouped <- CAST_M_101620_input %>% group_by(V10, V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(CAST_M_101620_input)
+```
+
+```{r}
+setwd("/projects/dumont-lab/uma/centromere_mapping/files")
+LEWES_F_011921_input <- read.delim(file = "fastp_LEWES_F_011921_input_Forward.sam", header = FALSE)
+
+LEWES_F_011921_input <- LEWES_F_011921_input[!grepl("N",LEWES_F_011921_input$V10),]
+
+reads_grouped <- LEWES_F_011921_input %>% group_by(V10, V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(LEWES_F_011921_input)
+```
+
+```{r}
+setwd("/projects/dumont-lab/uma/centromere_mapping/files")
+LEWES_M_011921_input <- read.delim(file = "fastp_LEWES_M_011921_input_Forward.sam", header = FALSE)
+
+LEWES_M_011921_input <- LEWES_M_011921_input[!grepl("N",LEWES_M_011921_input$V10),]
+
+reads_grouped <- LEWES_M_011921_input %>% group_by(V10, V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(LEWES_M_011921_input)
+```
+
+```{r}
+setwd("/projects/dumont-lab/uma/centromere_mapping/files")
+PWK_F_012621_input <- read.delim(file = "fastp_PWK_F_012621_input_Forward.sam", header = FALSE)
+
+PWK_F_012621_input <- PWK_F_012621_input[!grepl("N",PWK_F_012621_input$V10),]
+
+reads_grouped <- PWK_F_012621_input %>% group_by(V10, V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(PWK_F_012621_input)
+```
+
+```{r}
+setwd("/projects/dumont-lab/uma/centromere_mapping/files")
+PWK_M_101620_input <- read.delim(file = "fastp_PWK_M_101620_input_Forward.sam", header = FALSE)
+
+PWK_M_101620_input <- PWK_M_101620_input[!grepl("N",PWK_M_101620_input$V10),]
+
+reads_grouped <- PWK_M_101620_input %>% group_by(V10, V3) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V10","V3"), all = TRUE)
+
+rm(PWK_M_101620_input)
+```
+
+```{r}
+colnames(merged) <- c("V10","V3","B6_F_092920_CENPA","B6_F_092920_H3K4me3","B6_F_092920_IgG","B6_F_092920_input","B6_M_CENPA","CAST_F_011921_CENPA","CAST_F_011921_H3K4me3","CAST_F_011921_IgG","CAST_F_011921_input","CAST_M_011921_CENPA","CAST_M_101620_CENPA","LEWES_F_011921_CENPA","LEWES_F_012621_CENPA","LEWES_F_012621_H3K4me3","LEWES_F_012621_IgG","LEWES_F_012621_input","LEWES_M_011921_CENPA","PWK_F_012621_CENPA","PWK_F_092920_CENPA","PWK_F_092920_H3K4me3","PWK_F_092920_IgG","PWK_F_092920_input","PWK_M_101620_CENPA","B6_M_input","CAST_M_011921_input","CAST_M_101620_input","LEWES_F_011921_input","LEWES_M_011921_input","PWK_F_012621_input","PWK_M_101620_input")
+```
+
+
+
+
+```{r}
+merged[,26] <- merged[,26]/77160134
+merged[,27] <- merged[,27]/61994949
+merged[,28] <- merged[,28]/78283687
+merged[,29] <- merged[,29]/83485244
+merged[,30] <- merged[,30]/61507681
+merged[,31] <- merged[,31]/74463760
+merged[,32] <- merged[,32]/75558414
+```
+
+Replace NA with 0
+```{r}
+merged[is.na(merged)] <- 0
+```
+
+Ratio of ChIP/Input
+```{r}
+merged$B6_F_092920_CENPAoverInput <- merged$B6_F_092920_CENPA/merged$B6_F_092920_input
+merged$B6_F_092920_H3K4me3overInput <- merged$B6_F_092920_H3K4me3/merged$B6_F_092920_input
+merged$B6_F_092920_IgGoverInput <- merged$B6_F_092920_IgG/merged$B6_F_092920_input
+merged$B6_M_CENPAoverInput <- merged$B6_M_CENPA/merged$B6_M_input
+merged$CAST_F_011921_CENPAoverInput <- merged$CAST_F_011921_CENPA/merged$CAST_F_011921_input
+merged$CAST_F_011921_H3K4me3overInput <- merged$CAST_F_011921_H3K4me3/merged$CAST_F_011921_input
+merged$CAST_F_011921_IgGoverInput <- merged$CAST_F_011921_IgG/merged$CAST_F_011921_input
+merged$CAST_M_011921_CENPAoverInput <- merged$CAST_M_011921_CENPA/merged$CAST_M_011921_input
+merged$CAST_M_101620_CENPAoverInput <- merged$CAST_M_101620_CENPA/merged$CAST_M_101620_input
+merged$LEWES_F_011921_CENPAoverInput <- merged$LEWES_F_011921_CENPA/merged$LEWES_F_011921_input
+merged$LEWES_F_012621_CENPAoverInput <- merged$LEWES_F_012621_CENPA/merged$LEWES_F_012621_input
+merged$LEWES_F_012621_H3K4me3overInput <- merged$LEWES_F_012621_H3K4me3/merged$LEWES_F_012621_input
+merged$LEWES_F_012621_IgGoverInput <- merged$LEWES_F_012621_IgG/merged$LEWES_F_012621_input
+merged$LEWES_M_011921_CENPAoverInput <- merged$LEWES_M_011921_CENPA/merged$LEWES_M_011921_input
+merged$PWK_F_012621_CENPAoverInput <- merged$PWK_F_012621_CENPA/merged$PWK_F_012621_input
+merged$PWK_F_092920_CENPAoverInput <- merged$PWK_F_092920_CENPA/merged$PWK_F_092920_input
+merged$PWK_F_092920_H3K4me3overInput <- merged$PWK_F_092920_H3K4me3/merged$PWK_F_092920_input
+merged$PWK_F_092920_IgGoverInput <- merged$PWK_F_092920_IgG/merged$PWK_F_092920_input
+merged$PWK_M_101620_CENPAoverInput <- merged$PWK_M_101620_CENPA/merged$PWK_M_101620_input
+```
+
+Subset and write out df
+```{r}
+write.table(merged , file = "ChIP_Forward_mapped_normalized_SatSeparated_ALL.txt", row.names = FALSE)
+
+merged_subset <- merged[,c(1,2,33:51)]
+merged_subset <- merged_subset[-1,]
+```
+
+B6 within strain variance
+```{r}
+merged_subset$B6_CENPA_var <- rowVars(as.matrix(merged_subset[,3:21]), cols = c(1,4) )
+```
+
+CAST within strain variance
+```{r}
+merged_subset$CAST_CENPA_var <- rowVars(as.matrix(merged_subset[,3:21]), cols = c(5,8,9) )
+```
+
+LEWES within strain variance
+```{r}
+merged_subset$LEWES_CENPA_var <- rowVars(as.matrix(merged_subset[,3:21]), cols = c(10,11,14) )
+```
+
+PWK within strain variance
+```{r}
+merged_subset$PWK_CENPA_var <- rowVars(as.matrix(merged_subset[,3:21]), cols = c(15,16,19) )
+```
+
+Between strain variance
+```{r}
+merged_subset$ALL_CENPA_var <- rowVars(as.matrix(merged_subset[,3:25]), cols = c(20,21,22,23) )
+```
+
+Sort df by between strain variance
+```{r}
+merged_subset <- merged_subset[order(-merged_subset$ALL_CENPA_var),]
+```
+
+
+Grep to find CENPB box
+```{r}
+
+character_read <- merged_subset$V10
+
+test <- grepl("TTTCGTTGGAGCGGGA", character_read)
+
+merged_subset$CENPB_motif1 <- test
+
+test2 <- grepl("TTTCGTTGGAACGGGA", character_read)
+
+merged_subset$CENPB_motif2 <- test2
+
+```
+
+
+```{r}
+write.table(merged_subset , file = "ChIP_Forward_mapped_normalized_SatSeparated_ChIPoverInput.txt", row.names = FALSE)
+```
+
+head(merged_subset)
+                                                                                  V10                                          V3 B6_F_092920_CENPAoverInput B6_F_092920_H3K4me3overInput
+6248939  ATGGAAAATGATAAAAACCACACTGTAGAACATATTAGATGAGTGAGTTACACTGAAAAACACATTCTTTGGAAAC MinorSatelliteConsensusWongandRattner1988x3                  250.09531                    0.0000000
+14907995 TGAGAAACATGGAAAATGATAAAACCACACTGTAGAACATATTAGATGAGTGAGTTACACTGAAAAACACATTCGT MinorSatelliteConsensusWongandRattner1988x3                   18.64064                    0.2714616
+3096444  ACATGGAAAATGATAAAAACCACACTGTAGAACATATTAGATGAGTGAGTTACACTGAAAAACAAATTCGTTGGAA MinorSatelliteConsensusWongandRattner1988x3                   51.36533                    0.3257539
+15627419 TGGAAAATGATAAAAATCACACTGTAGAACATATTAGATGAGTGAGTTACACTGAAAAACACATTCGTTGGAAACG MinorSatelliteConsensusWongandRattner1988x3                  537.47191                    2.4431541
+10778550 GATAAAAACCACACTGTAGAACATATTAGATGAGTGAGTTACACTGAAAAACACATTCGTTGGAAACGGGATTTGT MinorSatelliteConsensusWongandRattner1988x3                  434.94837                    0.2714616
+6248860  ATGGAAAATGATAAAAACCACACTGTAGAACATATTAGATGAGTGAGTTACACTGAAAAACACATTCGTTGGAAAT MinorSatelliteConsensusWongandRattner1988x3                  167.76580                    0.2714616
+         B6_F_092920_IgGoverInput B6_M_CENPAoverInput CAST_F_011921_CENPAoverInput CAST_F_011921_H3K4me3overInput CAST_F_011921_IgGoverInput CAST_M_011921_CENPAoverInput CAST_M_101620_CENPAoverInput
+6248939                 0.0000000            542.1509                    26.791327                      0.0000000                  0.0000000                    48.777481                    42.790357
+14907995                0.1928134            558.7959                     3.420169                      0.4548715                  0.0000000                     5.853298                     8.460821
+3096444                 0.6941281            568.3073                    11.400565                      0.3537890                  0.1548063                    14.023526                    15.799516
+15627419                2.3137603            246.5043                    11.780584                      0.3537890                  0.0000000                    18.210260                    16.338136
+10778550                0.3856267            483.1145                    46.318866                      0.9097431                  0.2786513                   130.423480                    56.698719
+6248860                 0.5784401            540.9620                    27.361355                      1.0613669                  0.0000000                    19.120773                    19.255660
+         LEWES_F_011921_CENPAoverInput LEWES_F_012621_CENPAoverInput LEWES_F_012621_H3K4me3overInput LEWES_F_012621_IgGoverInput LEWES_M_011921_CENPAoverInput PWK_F_012621_CENPAoverInput
+6248939                      56.872385                     41.888407                       0.0000000                   0.2279269                     309.75874                    1.653354
+14907995                      4.533306                      8.580555                       0.3703656                   0.2486475                      21.10814                    2.369114
+3096444                      48.973443                     46.095539                       0.0000000                   0.2279269                     104.71192                    1.220925
+15627419                     17.377673                     25.681801                       0.0000000                   0.0000000                      89.22398                    2.783709
+10778550                     83.081076                    162.761154                       0.7129538                   0.8205369                     187.02720                    8.907868
+6248860                      21.327144                     60.363206                       0.0000000                   0.4558538                      29.46075                    2.419175
+         PWK_F_092920_CENPAoverInput PWK_F_092920_H3K4me3overInput PWK_F_092920_IgGoverInput PWK_M_101620_CENPAoverInput B6_CENPA_var CAST_CENPA_var LEWES_CENPA_var PWK_CENPA_var ALL_CENPA_var
+6248939                    1.4770156                     0.3802913                 0.1789578                    3.773257    42648.230     129.200928      22655.0898     1.6329683      30251.19
+14907995                   1.1766655                     0.1333489                 0.0366050                    2.213697   145883.834       6.354575         74.6743     0.4202537      27659.51
+3096444                    0.7995874                     0.2328314                 0.2300886                    3.215844   133614.494       4.897474       1091.8234     1.6659210      27352.39
+15627419                   2.7985559                     0.0000000                 0.5368734                    3.601746    42331.081      10.936144       1544.7433     0.2190864      27347.95
+10778550                  11.8938625                     0.4889459                 0.4026551                   31.620519     1159.988    2102.777967       2957.0920   152.3202863      27098.91
+6248860                    1.1097722                     0.2697633                 0.0000000                    5.448018    69637.687      22.271281        424.1553     4.9514681      25451.92
+         CENPB_motif1 CENPB_motif2
+6248939         FALSE        FALSE
+14907995        FALSE        FALSE
+3096444         FALSE        FALSE
+15627419        FALSE        FALSE
+10778550        FALSE        FALSE
+6248860         FALSE        FALSE
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r}
+setwd("/projects/dumont-lab/uma/centromere_mapping/CENPA_ChIP")
+merged <- read.table(file = "ChIP_Forward_mapped_normalized_SatSeparated_ChIPoverInput.txt", header = TRUE)
+
+```
+
+The within-sample or treatment variance or variation is the average of the all the variances for each population and is an estimate of
+ whether the null hypothesis, H0 is true or not.
+
+```{r}
+merged$WithinSampleVariance <- ((merged$B6_CENPA_var + merged$CAST_CENPA_var + merged$LEWES_CENPA_var + merged$PWK_CENPA_var)/4)
+```
+
+Calculate the grand mean for each row of data 
+```{r}
+merged$GrandMean <- rowMeans(merged[,c(3,6,7,10,11,12,13,16,17,18,21)] )
+```
+
+Sum of squares total 
+degrees of freedom = 11 - 1
+```{r}
+merged$SumOfSquaresTotal <- ((merged$B6_F_092920_CENPAoverInput-merged$GrandMean)^2 + (merged$B6_M_CENPAoverInput -merged$GrandMean)^2 + (merged$CAST_F_011921_CENPAoverInput -merged$GrandMean)^2 + (merged$CAST_M_011921_CENPAoverInput -merged$GrandMean)^2 + (merged$CAST_M_101620_CENPAoverInput -merged$GrandMean)^2 + (merged$LEWES_F_011921_CENPAoverInput -merged$GrandMean)^2 + (merged$LEWES_F_012621_CENPAoverInput -merged$GrandMean)^2 + (merged$LEWES_M_011921_CENPAoverInput -merged$GrandMean)^2 + (merged$PWK_F_012621_CENPAoverInput -merged$GrandMean)^2 + (merged$PWK_F_092920_CENPAoverInput -merged$GrandMean)^2 + (merged$PWK_M_101620_CENPAoverInput -merged$GrandMean)^2)
+```
+
+Means for each group
+```{r}
+merged$B6_CENPA_mean <- rowMeans(merged[,c(3,6)])
+merged$CAST_CENPA_mean <- rowMeans(merged[,c(7,10,11)])
+merged$LEWES_CENPA_mean <- rowMeans(merged[,c(12,13,16)])
+merged$PWK_CENPA_mean <- rowMeans(merged[,c(17,18,21)])
+```
+
+
+Sum of squares within
+(Sample mean - group mean)^2 
+degrees of freedom within = 7 (2-1, 3-1, 3-1, 3-1)
+```{r}
+merged$SumOfSquaresWithin <- ((merged$B6_F_092920_CENPAoverInput-merged$B6_CENPA_mean)^2 + (merged$B6_M_CENPAoverInput -merged$B6_CENPA_mean)^2 + (merged$CAST_F_011921_CENPAoverInput -merged$CAST_CENPA_mean)^2 + (merged$CAST_M_011921_CENPAoverInput -merged$CAST_CENPA_mean)^2 + (merged$CAST_M_101620_CENPAoverInput -merged$CAST_CENPA_mean)^2 + (merged$LEWES_F_011921_CENPAoverInput -merged$LEWES_CENPA_mean)^2 + (merged$LEWES_F_012621_CENPAoverInput -merged$LEWES_CENPA_mean)^2 + (merged$LEWES_M_011921_CENPAoverInput -merged$LEWES_CENPA_mean)^2 + (merged$PWK_F_012621_CENPAoverInput -merged$PWK_CENPA_mean)^2 + (merged$PWK_F_092920_CENPAoverInput -merged$PWK_CENPA_mean)^2 + (merged$PWK_M_101620_CENPAoverInput -merged$PWK_CENPA_mean)^2)
+```
+
+
+Sum of squares between
+group mean - grand mean * samples
+(B6mean - grand mean)^2 * 2 +
+(CASTmean - grand mean)^2 * 3 + 
+(LEWESmean - grand mean)^2 * 3 + 
+(PWKmean - grand mean)^2 * 3 + 
+Degrees of freedom between = groups - 1 = 4 - 1 = 3
+```{r}
+merged$SumOfSquaresBetween <- ( (((merged$B6_CENPA_mean - merged$GrandMean)^2) * 2) +  (((merged$CAST_CENPA_mean - merged$GrandMean)^2) * 3) + (((merged$LEWES_CENPA_mean - merged$GrandMean)^2) * 3) + (((merged$PWK_CENPA_mean - merged$GrandMean)^2) * 3) )
+```
+
+
+F statistic
+F = (SSB/dof between) / (SSW/dof within)
+```{r}
+merged$Fstatistic <- ((merged$SumOfSquaresBetween/3) / (merged$SumOfSquaresWithin/7))
+```
+
+Sort df by F statistic
+```{r}
+merged <- merged[order(-merged$Fstatistic),]
+```
+
+P value based on critical F statistic value
+
+```{r}
+merged$PvalueFstat <- pf(merged$Fstatistic, 3,7,lower.tail = FALSE)
+```
+
+Top 100 reads
+```{r}
+top100 <- merged[1:100,]
+```
+
+
+```{r}
+setwd("/projects/dumont-lab/uma/centromere_mapping/CENPA_ChIP")
+write.table(merged , file = "ChIP_Forward_mapped_normalized_SatSeparated_Fstats.txt", row.names = FALSE)
+write.table(top100 , file = "top100_ChIP_Forward_mapped_normalized_SatSeparated_Fstats.txt", row.names = FALSE)
+```
+Split by sat sequence and sort by F statistic
+```{r}
+minor <- merged[merged$V3 == 'MinorSatelliteConsensusWongandRattner1988x3',]
+minor <- minor[order(-minor$Fstatistic),]
+minor_top100 <- minor[1:100,]
+write.table(minor_top100 , file = "minortop100_ChIP_Forward_mapped_normalized_SatSeparated_Fstats.txt", row.names = FALSE)
+
+major <- merged[merged$V3 == 'MajorSatelliteConsensusWongandRattner1988x3',]
+major <- major[order(-major$Fstatistic),]
+major_top100 <- major[1:100,]
+write.table(major_top100 , file = "majortop100_ChIP_Forward_mapped_normalized_SatSeparated_Fstats.txt", row.names = FALSE)
+```
+
+
+Look at Ymin sequences between strains
+```{r}
+setwd("/projects/dumont-lab/uma/centromere_mapping/CENPA_ChIP")
+
+all <- read.table(file = "ChIP_Forward_mapped_normalized_SatSeparated_Fstats.txt", header = TRUE)
+
+Y <- all[all$V3 == 'eco12_Ym841',]
+
+B6high <- Y[order(-Y$B6_M_CENPAoverInput),]
+B6highInf <- Y[Y$B6_M_CENPAoverInput == 'Inf',]
+B6highInf <- B6highInf[,c(1,2,6)]
+B6highInf <- na.omit(B6highInf)
+
+CASThigh <- Y[order(-Y$CAST_M_011921_CENPAoverInput),]
+CASThighInf <- Y[Y$CAST_M_011921_CENPAoverInput == 'Inf',]
+CASThighInf <- CASThighInf[CASThighInf$CAST_M_101620_CENPAoverInput == 'Inf',]
+CASThighInf <- CASThighInf [,c(1,2,10,11)]
+CASThighInf <- na.omit(CASThighInf)
+
+LEWEShigh <- Y[order(-Y$LEWES_M_011921_CENPAoverInput),]
+LEWEShighInf <- LEWEShigh[,c(1,2,16)]
+LEWEShighInf <- na.omit(LEWEShighInf)
+
+PWKhigh <- Y[order(-Y$PWK_M_101620_CENPAoverInput),]
+PWKhighInf <- PWKhigh[,c(1,2,21)]
+PWKhighInf <- na.omit(PWKhighInf)
+
+#Write out these sequences 
+#CAST
+reads <- data.frame(sequence = character(),
+                          stringsAsFactors = FALSE)
+prep <- data.frame(sequence = character(),
+                         stringsAsFactors = FALSE)
+
+for (i in 1:nrow(CASThighInf)) {
+  prep[1,1] <- paste(">",i, sep = "")
+  prep[2,1] <- as.character(CASThighInf[i,1])
+  reads <- rbind(reads,prep)
+}
+
+write.table(reads, file = "CAST_Yinf_reads.fa", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+#LEWES
+reads <- data.frame(sequence = character(),
+                          stringsAsFactors = FALSE)
+prep <- data.frame(sequence = character(),
+                         stringsAsFactors = FALSE)
+
+for (i in 1:nrow(LEWEShighInf)) {
+  prep[1,1] <- paste(">",i, sep = "")
+  prep[2,1] <- as.character(LEWEShighInf[i,1])
+  reads <- rbind(reads,prep)
+}
+
+write.table(reads, file = "LEWES_Yinf_reads.fa", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+#C57BL/6J
+reads <- data.frame(sequence = character(),
+                          stringsAsFactors = FALSE)
+prep <- data.frame(sequence = character(),
+                         stringsAsFactors = FALSE)
+
+for (i in 1:nrow(B6highInf)) {
+  prep[1,1] <- paste(">",i, sep = "")
+  prep[2,1] <- as.character(B6highInf[i,1])
+  reads <- rbind(reads,prep)
+}
+
+write.table(reads, file = "B6_Yinf_reads.fa", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+#PWK/PhJ
+reads <- data.frame(sequence = character(),
+                          stringsAsFactors = FALSE)
+prep <- data.frame(sequence = character(),
+                         stringsAsFactors = FALSE)
+
+for (i in 1:nrow(PWKhighInf)) {
+  prep[1,1] <- paste(">",i, sep = "")
+  prep[2,1] <- as.character(PWKhighInf[i,1])
+  reads <- rbind(reads,prep)
+}
+
+write.table(reads, file = "PWK_Yinf_reads.fa", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+
+```
+
+
+07/13/22
+Read in mapped sam file
+Quantify mismatch differences while mapping
+
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+B6_F_092920_CENPA <- read.delim(file = "noheader_fastp_B6_F_092920_CENPA_mapped.sam", header = FALSE)
+
+B6_F_092920_CENPA <- B6_F_092920_CENPA[!grepl("N",B6_F_092920_CENPA$V10),]
+
+reads_grouped <- B6_F_092920_CENPA %>% group_by(V3, V12) %>% summarise(n()) 
+
+tidy <- reads_grouped
+
+tidy$sample <- c("B6_F_092920_CENPA")
+
+rm(B6_F_092920_CENPA)
+
+B6_F_092920_input <- read.delim(file = "noheader_fastp_B6_F_092920_input_mapped.sam", header = FALSE)
+
+B6_F_092920_input <- B6_F_092920_input[!grepl("N",B6_F_092920_input$V10),]
+
+reads_grouped_2 <- B6_F_092920_input %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(reads_grouped, reads_grouped_2,  by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped_2
+
+tidy_add$sample <- c("B6_F_092920_input")
+
+rm(B6_F_092920_input)
+
+tidy <- rbind(tidy, tidy_add)
+
+B6_M_CENPA <- read.delim(file = "noheader_fastp_B6_M_CENPA_mapped.sam", header = FALSE)
+
+B6_M_CENPA <- B6_M_CENPA[!grepl("N",B6_M_CENPA$V10),]
+
+reads_grouped <- B6_M_CENPA %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("B6_M_CENPA")
+
+rm(B6_M_CENPA)
+
+tidy <- rbind(tidy, tidy_add)
+
+B6_M_input <- read.delim(file = "noheader_fastp_B6_M_input_mapped.sam", header = FALSE)
+
+B6_M_input <- B6_M_input[!grepl("N",B6_M_input$V10),]
+
+reads_grouped <- B6_M_input %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("B6_M_input")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(B6_M_input)
+
+```
+
+
+CAST
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+CAST_F_011921_CENPA <- read.delim(file = "noheader_fastp_CAST_F_011921_CENPA_mapped.sam", header = FALSE)
+
+CAST_F_011921_CENPA <- CAST_F_011921_CENPA[!grepl("N",CAST_F_011921_CENPA$V10),]
+
+reads_grouped <- CAST_F_011921_CENPA %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("CAST_F_011921_CENPA")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(CAST_F_011921_CENPA)
+
+
+CAST_F_011921_input <- read.delim(file = "noheader_fastp_CAST_F_011921_input_mapped.sam", header = FALSE)
+
+CAST_F_011921_input <- CAST_F_011921_input[!grepl("N",CAST_F_011921_input$V10),]
+
+reads_grouped <- CAST_F_011921_input %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("CAST_F_011921_input")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(CAST_F_011921_input)
+
+
+CAST_M_011921_CENPA <- read.delim(file = "noheader_fastp_CAST_M_011921_CENPA_mapped.sam", header = FALSE)
+
+CAST_M_011921_CENPA <- CAST_M_011921_CENPA[!grepl("N",CAST_M_011921_CENPA$V10),]
+
+reads_grouped <- CAST_M_011921_CENPA %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("CAST_M_011921_CENPA")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(CAST_M_011921_CENPA)
+
+
+
+CAST_M_011921_input <- read.delim(file = "noheader_fastp_CAST_M_011921_input_mapped.sam", header = FALSE)
+
+CAST_M_011921_input <- CAST_M_011921_input[!grepl("N",CAST_M_011921_input$V10),]
+
+reads_grouped <- CAST_M_011921_input %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("CAST_M_011921_input")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(CAST_M_011921_input)
+
+
+CAST_M_101620_CENPA <- read.delim(file = "noheader_fastp_CAST_M_101620_CENPA_mapped.sam", header = FALSE)
+
+CAST_M_101620_CENPA <- CAST_M_101620_CENPA[!grepl("N",CAST_M_101620_CENPA$V10),]
+
+reads_grouped <- CAST_M_101620_CENPA %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("CAST_M_101620_CENPA")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(CAST_M_101620_CENPA)
+
+
+CAST_M_101620_input <- read.delim(file = "noheader_fastp_CAST_M_101620_input_mapped.sam", header = FALSE)
+
+CAST_M_101620_input <- CAST_M_101620_input[!grepl("N",CAST_M_101620_input$V10),]
+
+reads_grouped <- CAST_M_101620_input %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3","V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("CAST_M_101620_input")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(CAST_M_101620_input)
+
+```
+
+LEWES
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+LEWES_F_011921_CENPA <- read.delim(file = "noheader_fastp_LEWES_F_011921_CENPA_mapped.sam", header = FALSE)
+
+LEWES_F_011921_CENPA <- LEWES_F_011921_CENPA[!grepl("N",LEWES_F_011921_CENPA$V10),]
+
+reads_grouped <- LEWES_F_011921_CENPA %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("LEWES_F_011921_CENPA")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(LEWES_F_011921_CENPA)
+
+
+LEWES_F_011921_input <- read.delim(file = "noheader_fastp_LEWES_F_011921_input_mapped.sam", header = FALSE)
+
+LEWES_F_011921_input <- LEWES_F_011921_input[!grepl("N",LEWES_F_011921_input$V10),]
+
+reads_grouped <- LEWES_F_011921_input %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3","V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("LEWES_F_011921_input")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(LEWES_F_011921_input)
+
+
+LEWES_F_012621_CENPA <- read.delim(file = "noheader_fastp_LEWES_F_012621_CENPA_mapped.sam", header = FALSE)
+
+LEWES_F_012621_CENPA <- LEWES_F_012621_CENPA[!grepl("N",LEWES_F_012621_CENPA$V10),]
+
+reads_grouped <- LEWES_F_012621_CENPA %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("LEWES_F_012621_CENPA")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(LEWES_F_012621_CENPA)
+
+
+
+LEWES_F_012621_input <- read.delim(file = "noheader_fastp_LEWES_F_012621_input_mapped.sam", header = FALSE)
+
+LEWES_F_012621_input <- LEWES_F_012621_input[!grepl("N",LEWES_F_012621_input$V10),]
+
+reads_grouped <- LEWES_F_012621_input %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("LEWES_F_012621_input")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(LEWES_F_012621_input)
+
+
+
+LEWES_M_011921_CENPA <- read.delim(file = "noheader_fastp_LEWES_M_011921_CENPA_mapped.sam", header = FALSE)
+
+LEWES_M_011921_CENPA <- LEWES_M_011921_CENPA[!grepl("N",LEWES_M_011921_CENPA$V10),]
+
+reads_grouped <- LEWES_M_011921_CENPA %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("LEWES_M_011921_CENPA")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(LEWES_M_011921_CENPA)
+
+
+LEWES_M_011921_input <- read.delim(file = "noheader_fastp_LEWES_M_011921_input_mapped.sam", header = FALSE)
+
+LEWES_M_011921_input <- LEWES_M_011921_input[!grepl("N",LEWES_M_011921_input$V10),]
+
+reads_grouped <- LEWES_M_011921_input %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3","V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("LEWES_M_011921_input")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(LEWES_M_011921_input)
+
+```
+
+PWK
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+PWK_F_012621_CENPA <- read.delim(file = "noheader_fastp_PWK_F_012621_CENPA_mapped.sam", header = FALSE)
+
+PWK_F_012621_CENPA <- PWK_F_012621_CENPA[!grepl("N",PWK_F_012621_CENPA$V10),]
+
+reads_grouped <- PWK_F_012621_CENPA %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("PWK_F_012621_CENPA")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(PWK_F_012621_CENPA)
+
+
+PWK_F_012621_input <- read.delim(file = "noheader_fastp_PWK_F_012621_input_mapped.sam", header = FALSE)
+
+PWK_F_012621_input <- PWK_F_012621_input[!grepl("N",PWK_F_012621_input$V10),]
+
+reads_grouped <- PWK_F_012621_input %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3","V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("PWK_F_012621_input")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(PWK_F_012621_input)
+
+
+
+PWK_F_092920_CENPA <- read.delim(file = "noheader_fastp_PWK_F_092920_CENPA_mapped.sam", header = FALSE)
+
+PWK_F_092920_CENPA <- PWK_F_092920_CENPA[!grepl("N",PWK_F_092920_CENPA$V10),]
+
+reads_grouped <- PWK_F_092920_CENPA %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("PWK_F_092920_CENPA")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(PWK_F_092920_CENPA)
+
+
+
+PWK_F_092920_input <- read.delim(file = "noheader_fastp_PWK_F_092920_input_mapped.sam", header = FALSE)
+
+PWK_F_092920_input <- PWK_F_092920_input[!grepl("N",PWK_F_092920_input$V10),]
+
+reads_grouped <- PWK_F_092920_input %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("PWK_F_092920_input")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(PWK_F_092920_input)
+
+
+PWK_M_101620_CENPA <- read.delim(file = "noheader_fastp_PWK_M_101620_CENPA_mapped.sam", header = FALSE)
+
+PWK_M_101620_CENPA <- PWK_M_101620_CENPA[!grepl("N",PWK_M_101620_CENPA$V10),]
+
+reads_grouped <- PWK_M_101620_CENPA %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3", "V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("PWK_M_101620_CENPA")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(PWK_M_101620_CENPA)
+
+
+PWK_M_101620_input <- read.delim(file = "noheader_fastp_PWK_M_101620_input_mapped.sam", header = FALSE)
+
+PWK_M_101620_input <- PWK_M_101620_input[!grepl("N",PWK_M_101620_input$V10),]
+
+reads_grouped <- PWK_M_101620_input %>% group_by(V3, V12) %>% summarise(n()) 
+
+merged <- merge(merged, reads_grouped, by = c("V3","V12"), all = TRUE)
+
+tidy_add <-  reads_grouped
+
+tidy_add$sample <- c("PWK_M_101620_input")
+
+tidy <- rbind(tidy, tidy_add)
+
+rm(PWK_M_101620_input)
+
+```
+```{r}
+colnames(merged) <- c("Satellite","EditDistance","B6_F_092920_CENPA","B6_F_092920_input","B6_M_092920_CENPA","B6_M_092920_input","CAST_F_011921_CENPA","CAST_F_011921_input","CAST_M_011921_CENPA","CAST_M_011921_input","CAST_M_101620_CENPA","CAST_M_101620_input","LEWES_F_011921_CENPA","LEWES_F_011921_input","LEWES_F_012621_CENPA","LEWES_F_012621_input","LEWES_M_011921_CENPA","LEWES_M_011921_input","PWK_F_012621_CENPA","PWK_F_012621_input","PWK_F_092920_CENPA","PWK_F_092920_input","PWK_M_101620_CENPA","PWK_M_101620_input")
+
+merged <- merged[-1,]
+```
+
+Remove 
+```{r}
+tidy <- tidy[tidy$V3 != "",]
+```
+
+
+Write out tables
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+#write.table(merged, file = "EditDistance_MappedReads_CENPA_Input.txt")
+merged <- read.table(file = "EditDistance_MappedReads_CENPA_Input.txt")
+```
+
+
+Do I need to normalize by number of reads? 
+yes
+number of reads that mapped? Or number of reads in fastq?
+Number of reads in fastq
+```{r}
+merged[,3] <- merged[,3]/36284747
+merged[,4] <- merged[,4]/37576170
+merged[,5] <- merged[,5]/32449473
+merged[,6] <- merged[,6]/77160134
+merged[,7] <- merged[,7]/35730081
+merged[,8] <- merged[,8]/40734310
+merged[,9] <- merged[,9]/31774370
+merged[,10] <- merged[,10]/61994949
+merged[,11] <- merged[,11]/33540289
+merged[,12] <- merged[,12]/78283687
+merged[,13] <- merged[,13]/35230558
+merged[,14] <- merged[,14]/83485244
+merged[,15] <- merged[,15]/35383719
+merged[,16] <- merged[,16]/38834086
+merged[,17] <- merged[,17]/36536220
+merged[,18] <- merged[,18]/61507681
+merged[,19] <- merged[,19]/40124760
+merged[,20] <- merged[,20]/74463760
+merged[,21] <- merged[,21]/30662613
+merged[,22] <- merged[,22]/42905518
+merged[,23] <- merged[,23]/29369587
+merged[,24] <- merged[,24]/75558414
+
+```
+
+
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+write.table(merged, file = "EditDistance_MappedReads_CENPA_Input_ReadCountNorm.txt")
+```
+
+Make merged tidy
+```{r}
+merged %>% 
+  filter(Satellite == "MinorSatelliteConsensusWongandRattner1988x3") %>%
+  pivot_longer(B6_F_092920_CENPA:PWK_M_101620_input, names_to = "sample", values_to = "frequency") %>%
+  separate(sample, into = c("Strain","Sex","Rep","AB"), sep = "_") %>%
+  separate(EditDistance, into = c("N","i","Mismatches"), sep = ":") -> merged_minor_tidy
+
+
+  
+merged_minor_tidy$Mismatches <- as.numeric(merged_minor_tidy$Mismatches) 
+
+merged_minor_tidy %>%
+  ggplot(aes(x = Mismatches, y = frequency)) +
+  geom_col() +
+  facet_grid(rows = vars(Strain)) +
+  theme(axis.text.x = element_text(angle = 45))
+```
+
+
+```{r}
+merged_minor_tidy %>%
+  ggplot(aes(x = Mismatches, y = frequency, color = Strain)) +
+  geom_jitter(alpha = 0.25) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45)) 
+```
+
+```{r}
+merged_minor_tidy$Mismatches <- as.factor(merged_minor_tidy$Mismatches) 
+
+```
+
+
+```{r}
+merged_minor_tidy %>% 
+  filter(AB == "CENPA") %>% 
+  ggplot(aes(x = Mismatches, y = frequency)) +
+  geom_boxplot() +
+  theme_classic() +
+  facet_grid(rows = vars(Strain))
+```
+
+Normalize CENPA/input for previous plot
+
+```{r}
+merged$B6_F_092920_CENPAoverInput <- merged$B6_F_092920_CENPA/merged$B6_F_092920_input
+merged$B6_M_092920_CENPAoverInput <- merged$B6_M_CENPA/merged$B6_M_input
+merged$CAST_F_011921_CENPAoverInput <- merged$CAST_F_011921_CENPA/merged$CAST_F_011921_input
+merged$CAST_M_011921_CENPAoverInput <- merged$CAST_M_011921_CENPA/merged$CAST_M_011921_input
+merged$CAST_M_101620_CENPAoverInput <- merged$CAST_M_101620_CENPA/merged$CAST_M_101620_input
+merged$LEWES_F_011921_CENPAoverInput <- merged$LEWES_F_011921_CENPA/merged$LEWES_F_011921_input
+merged$LEWES_F_012621_CENPAoverInput <- merged$LEWES_F_012621_CENPA/merged$LEWES_F_012621_input
+merged$LEWES_M_011921_CENPAoverInput <- merged$LEWES_M_011921_CENPA/merged$LEWES_M_011921_input
+merged$PWK_F_012621_CENPAoverInput <- merged$PWK_F_012621_CENPA/merged$PWK_F_012621_input
+merged$PWK_F_092920_CENPAoverInput <- merged$PWK_F_092920_CENPA/merged$PWK_F_092920_input
+merged$PWK_M_101620_CENPAoverInput <- merged$PWK_M_101620_CENPA/merged$PWK_M_101620_input
+
+```
+
+```{r}
+merged_select <- merged[,c(1,2,25:35)]
+merged_select %>% 
+  filter(Satellite == "MinorSatelliteConsensusWongandRattner1988x3") %>%
+  pivot_longer(B6_F_092920_CENPAoverInput:PWK_M_101620_CENPAoverInput, names_to = "sample", values_to = "frequency") %>%
+  separate(sample, into = c("Strain","Sex","Rep","AB"), sep = "_") %>%
+  separate(EditDistance, into = c("N","i","Mismatches"), sep = ":") -> merged_minor_norm_tidy
+```
+
+
+```{r}
+merged_minor_norm_tidy$Mismatches <- as.numeric(merged_minor_norm_tidy$Mismatches) 
+merged_minor_norm_tidy$Mismatches <- as.factor(merged_minor_norm_tidy$Mismatches)
+
+merged_minor_norm_tidy %>% 
+  ggplot(aes(x = Mismatches, y = frequency)) +
+  geom_boxplot() +
+  theme_classic() +
+  facet_grid(rows = vars(Strain))
+```
+
+
+
+```{r}
+tidy <- separate(
+  tidy,
+  sample,
+  into = c("Strain","Sex","Rep","AB"),
+  sep = "_")
+
+tidy[122:268,7] <- tidy[122:268,6]
+tidy[122:268,6] <- c("092920")
+```
+
+
+```{r}
+colnames(tidy) <- c("Satellite","Mismatches","freq","Strain","Sex","Rep","AB")
+```
+
+
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+write.table(tidy, file = "TIDY_EditDistance_MappedReads_CENPA_Input.txt")
+
+```
+
+
+```{r}
+tidy %>% 
+  filter(Satellite == "MinorSatelliteConsensusWongandRattner1988x3", AB == "CENPA") %>%
+  separate(Mismatches, into = c("N","i","Mismatches"), sep = ":") -> tidy_minor_cenpa
+
+tidy_minor_cenpa$Mismatches <- as.numeric(tidy_minor_cenpa$Mismatches)
+tidy_minor_cenpa %>%
+  ggplot(aes(x = Mismatches, y = freq)) +
+  geom_col() +
+  theme_classic() +
+  facet_grid(rows = vars(Strain))
+```
+
+
+```{r}
+tidy_minor_cenpa %>%
+  ggplot(aes(x = Mismatches, y = freq)) +
+  geom_col() +
+  facet_grid(rows = vars(Strain))
+```
+
+What is the overlap between reads that mapped in genome and reads that mapped to centromere
+
+For each sample read in mapped sam file and merge by read name. 
+Save information of mapping information, can remove other columns
+
+Make no header mapped mm11 file
+```{bash}
+
+cd /fastscratch/uma/CENPA_ChIP/mm11_mapped
+
+for file in *_mapped.sam; do
+
+sed 1,62d ${file} > noheader_${file}
+
+done
+```
+
+Read in mapped genome files and remove columns
+merge mapped genome file with mapped centromere file
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+B6_F_092920_CENPA_mm11 <- read.delim(file = "noheader_fastp_B6_F_092920_CENPA_mapped.sam", header = FALSE)
+
+B6_F_092920_CENPA_mm11 <- B6_F_092920_CENPA_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+B6_F_092920_CENPA <- read.delim(file = "noheader_fastp_B6_F_092920_CENPA_mapped.sam", header = FALSE)
+
+B6_F_092920_CENPA <- B6_F_092920_CENPA[,c(1,2,3,4,12)]
+
+merged <- merge(B6_F_092920_CENPA,B6_F_092920_CENPA_mm11, by = "V1", all = FALSE)
+
+rm(B6_F_092920_CENPA)
+rm(B6_F_092920_CENPA_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "B6_F_092920_CENPA_mm11_cent_mappingoverlap.txt")
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+B6_F_092920_input_mm11 <- read.delim(file = "noheader_fastp_B6_F_092920_input_mapped.sam", header = FALSE)
+
+B6_F_092920_input_mm11 <- B6_F_092920_input_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+B6_F_092920_input <- read.delim(file = "noheader_fastp_B6_F_092920_input_mapped.sam", header = FALSE)
+
+B6_F_092920_input <- B6_F_092920_input[,c(1,2,3,4,12)]
+
+merged <- merge(B6_F_092920_input,B6_F_092920_input_mm11, by = "V1", all = FALSE)
+
+rm(B6_F_092920_input)
+rm(B6_F_092920_input_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "B6_F_092920_input_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+B6_M_CENPA_mm11 <- read.delim(file = "noheader_fastp_B6_M_CENPA_mapped.sam", header = FALSE)
+
+B6_M_CENPA_mm11 <- B6_M_CENPA_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+B6_M_CENPA <- read.delim(file = "noheader_fastp_B6_M_CENPA_mapped.sam", header = FALSE)
+
+B6_M_CENPA <- B6_M_CENPA[,c(1,2,3,4,12)]
+
+merged <- merge(B6_M_CENPA,B6_M_CENPA_mm11, by = "V1", all = FALSE)
+
+rm(B6_M_CENPA)
+rm(B6_M_CENPA_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "B6_M_092920_CENPA_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+B6_M_input_mm11 <- read.delim(file = "noheader_fastp_B6_M_input_mapped.sam", header = FALSE)
+
+B6_M_input_mm11 <- B6_M_input_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+B6_M_input <- read.delim(file = "noheader_fastp_B6_M_input_mapped.sam", header = FALSE)
+
+B6_M_input <- B6_M_input[,c(1,2,3,4,12)]
+
+merged <- merge(B6_M_input,B6_M_input_mm11, by = "V1", all = FALSE)
+
+rm(B6_M_input)
+rm(B6_M_input_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "B6_M_092920_input_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+CAST_F_011921_CENPA_mm11 <- read.delim(file = "noheader_fastp_CAST_F_011921_CENPA_mapped.sam", header = FALSE)
+
+CAST_F_011921_CENPA_mm11 <- CAST_F_011921_CENPA_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+CAST_F_011921_CENPA <- read.delim(file = "noheader_fastp_CAST_F_011921_CENPA_mapped.sam", header = FALSE)
+
+CAST_F_011921_CENPA <- CAST_F_011921_CENPA[,c(1,2,3,4,12)]
+
+merged <- merge(CAST_F_011921_CENPA,CAST_F_011921_CENPA_mm11, by = "V1", all = FALSE)
+
+rm(CAST_F_011921_CENPA)
+rm(CAST_F_011921_CENPA_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "CAST_F_011921_CENPA_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+CAST_F_011921_input_mm11 <- read.delim(file = "noheader_fastp_CAST_F_011921_input_mapped.sam", header = FALSE)
+
+CAST_F_011921_input_mm11 <- CAST_F_011921_input_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+CAST_F_011921_input <- read.delim(file = "noheader_fastp_CAST_F_011921_input_mapped.sam", header = FALSE)
+
+CAST_F_011921_input <- CAST_F_011921_input[,c(1,2,3,4,12)]
+
+merged <- merge(CAST_F_011921_input,CAST_F_011921_input_mm11, by = "V1", all = FALSE)
+
+rm(CAST_F_011921_input)
+rm(CAST_F_011921_input_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "CAST_F_011921_input_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+CAST_M_011921_CENPA_mm11 <- read.delim(file = "noheader_fastp_CAST_M_011921_CENPA_mapped.sam", header = FALSE)
+
+CAST_M_011921_CENPA_mm11 <- CAST_M_011921_CENPA_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+CAST_M_011921_CENPA <- read.delim(file = "noheader_fastp_CAST_M_011921_CENPA_mapped.sam", header = FALSE)
+
+CAST_M_011921_CENPA <- CAST_M_011921_CENPA[,c(1,2,3,4,12)]
+
+merged <- merge(CAST_M_011921_CENPA,CAST_M_011921_CENPA_mm11, by = "V1", all = FALSE)
+
+rm(CAST_M_011921_CENPA)
+rm(CAST_M_011921_CENPA_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "CAST_M_011921_CENPA_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+CAST_M_011921_input_mm11 <- read.delim(file = "noheader_fastp_CAST_M_011921_input_mapped.sam", header = FALSE)
+
+CAST_M_011921_input_mm11 <- CAST_M_011921_input_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+CAST_M_011921_input <- read.delim(file = "noheader_fastp_CAST_M_011921_input_mapped.sam", header = FALSE)
+
+CAST_M_011921_input <- CAST_M_011921_input[,c(1,2,3,4,12)]
+
+merged <- merge(CAST_M_011921_input,CAST_M_011921_input_mm11, by = "V1", all = FALSE)
+
+rm(CAST_M_011921_input)
+rm(CAST_M_011921_input_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "CAST_M_011921_input_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+CAST_M_101620_CENPA_mm11 <- read.delim(file = "noheader_fastp_CAST_M_101620_CENPA_mapped.sam", header = FALSE)
+
+CAST_M_101620_CENPA_mm11 <- CAST_M_101620_CENPA_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+CAST_M_101620_CENPA <- read.delim(file = "noheader_fastp_CAST_M_101620_CENPA_mapped.sam", header = FALSE)
+
+CAST_M_101620_CENPA <- CAST_M_101620_CENPA[,c(1,2,3,4,12)]
+
+merged <- merge(CAST_M_101620_CENPA,CAST_M_101620_CENPA_mm11, by = "V1", all = FALSE)
+
+rm(CAST_M_101620_CENPA)
+rm(CAST_M_101620_CENPA_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "CAST_M_101620_CENPA_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+CAST_M_101620_input_mm11 <- read.delim(file = "noheader_fastp_CAST_M_101620_input_mapped.sam", header = FALSE)
+
+CAST_M_101620_input_mm11 <- CAST_M_101620_input_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+CAST_M_101620_input <- read.delim(file = "noheader_fastp_CAST_M_101620_input_mapped.sam", header = FALSE)
+
+CAST_M_101620_input <- CAST_M_101620_input[,c(1,2,3,4,12)]
+
+merged <- merge(CAST_M_101620_input,CAST_M_101620_input_mm11, by = "V1", all = FALSE)
+
+rm(CAST_M_101620_input)
+rm(CAST_M_101620_input_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "CAST_M_101620_input_mm11_cent_mappingoverlap.txt")
+
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+LEWES_F_011921_CENPA_mm11 <- read.delim(file = "noheader_fastp_LEWES_F_011921_CENPA_mapped.sam", header = FALSE)
+
+LEWES_F_011921_CENPA_mm11 <- LEWES_F_011921_CENPA_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+LEWES_F_011921_CENPA <- read.delim(file = "noheader_fastp_LEWES_F_011921_CENPA_mapped.sam", header = FALSE)
+
+LEWES_F_011921_CENPA <- LEWES_F_011921_CENPA[,c(1,2,3,4,12)]
+
+merged <- merge(LEWES_F_011921_CENPA,LEWES_F_011921_CENPA_mm11, by = "V1", all = FALSE)
+
+rm(LEWES_F_011921_CENPA)
+rm(LEWES_F_011921_CENPA_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "LEWES_F_011921_CENPA_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+LEWES_F_011921_input_mm11 <- read.delim(file = "noheader_fastp_LEWES_F_011921_input_mapped.sam", header = FALSE)
+
+LEWES_F_011921_input_mm11 <- LEWES_F_011921_input_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+LEWES_F_011921_input <- read.delim(file = "noheader_fastp_LEWES_F_011921_input_mapped.sam", header = FALSE)
+
+LEWES_F_011921_input <- LEWES_F_011921_input[,c(1,2,3,4,12)]
+
+merged <- merge(LEWES_F_011921_input,LEWES_F_011921_input_mm11, by = "V1", all = FALSE)
+
+rm(LEWES_F_011921_input)
+rm(LEWES_F_011921_input_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "LEWES_F_011921_input_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+LEWES_F_012621_CENPA_mm11 <- read.delim(file = "noheader_fastp_LEWES_F_012621_CENPA_mapped.sam", header = FALSE)
+
+LEWES_F_012621_CENPA_mm11 <- LEWES_F_012621_CENPA_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+LEWES_F_012621_CENPA <- read.delim(file = "noheader_fastp_LEWES_F_012621_CENPA_mapped.sam", header = FALSE)
+
+LEWES_F_012621_CENPA <- LEWES_F_012621_CENPA[,c(1,2,3,4,12)]
+
+merged <- merge(LEWES_F_012621_CENPA,LEWES_F_012621_CENPA_mm11, by = "V1", all = FALSE)
+
+rm(LEWES_F_012621_CENPA)
+rm(LEWES_F_012621_CENPA_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "LEWES_F_012621_CENPA_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+LEWES_F_012621_input_mm11 <- read.delim(file = "noheader_fastp_LEWES_F_012621_input_mapped.sam", header = FALSE)
+
+LEWES_F_012621_input_mm11 <- LEWES_F_012621_input_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+LEWES_F_012621_input <- read.delim(file = "noheader_fastp_LEWES_F_012621_input_mapped.sam", header = FALSE)
+
+LEWES_F_012621_input <- LEWES_F_012621_input[,c(1,2,3,4,12)]
+
+merged <- merge(LEWES_F_012621_input,LEWES_F_012621_input_mm11, by = "V1", all = FALSE)
+
+rm(LEWES_F_012621_input)
+rm(LEWES_F_012621_input_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "LEWES_F_012621_input_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+LEWES_M_011921_CENPA_mm11 <- read.delim(file = "noheader_fastp_LEWES_M_011921_CENPA_mapped.sam", header = FALSE)
+
+LEWES_M_011921_CENPA_mm11 <- LEWES_M_011921_CENPA_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+LEWES_M_011921_CENPA <- read.delim(file = "noheader_fastp_LEWES_M_011921_CENPA_mapped.sam", header = FALSE)
+
+LEWES_M_011921_CENPA <- LEWES_M_011921_CENPA[,c(1,2,3,4,12)]
+
+merged <- merge(LEWES_M_011921_CENPA,LEWES_M_011921_CENPA_mm11, by = "V1", all = FALSE)
+
+rm(LEWES_M_011921_CENPA)
+rm(LEWES_M_011921_CENPA_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "LEWES_M_011921_CENPA_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+LEWES_M_011921_input_mm11 <- read.delim(file = "noheader_fastp_LEWES_M_011921_input_mapped.sam", header = FALSE)
+
+LEWES_M_011921_input_mm11 <- LEWES_M_011921_input_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+LEWES_M_011921_input <- read.delim(file = "noheader_fastp_LEWES_M_011921_input_mapped.sam", header = FALSE)
+
+LEWES_M_011921_input <- LEWES_M_011921_input[,c(1,2,3,4,12)]
+
+merged <- merge(LEWES_M_011921_input,LEWES_M_011921_input_mm11, by = "V1", all = FALSE)
+
+rm(LEWES_M_011921_input)
+rm(LEWES_M_011921_input_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "LEWES_M_011921_input_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+PWK_F_012621_CENPA_mm11 <- read.delim(file = "noheader_fastp_PWK_F_012621_CENPA_mapped.sam", header = FALSE)
+
+PWK_F_012621_CENPA_mm11 <- PWK_F_012621_CENPA_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+PWK_F_012621_CENPA <- read.delim(file = "noheader_fastp_PWK_F_012621_CENPA_mapped.sam", header = FALSE)
+
+PWK_F_012621_CENPA <- PWK_F_012621_CENPA[,c(1,2,3,4,12)]
+
+merged <- merge(PWK_F_012621_CENPA,PWK_F_012621_CENPA_mm11, by = "V1", all = FALSE)
+
+rm(PWK_F_012621_CENPA)
+rm(PWK_F_012621_CENPA_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "PWK_F_012621_CENPA_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+PWK_F_012621_input_mm11 <- read.delim(file = "noheader_fastp_PWK_F_012621_input_mapped.sam", header = FALSE)
+
+PWK_F_012621_input_mm11 <- PWK_F_012621_input_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+PWK_F_012621_input <- read.delim(file = "noheader_fastp_PWK_F_012621_input_mapped.sam", header = FALSE)
+
+PWK_F_012621_input <- PWK_F_012621_input[,c(1,2,3,4,12)]
+
+merged <- merge(PWK_F_012621_input,PWK_F_012621_input_mm11, by = "V1", all = FALSE)
+
+rm(PWK_F_012621_input)
+rm(PWK_F_012621_input_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "PWK_F_012621_input_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+PWK_F_092920_CENPA_mm11 <- read.delim(file = "noheader_fastp_PWK_F_092920_CENPA_mapped.sam", header = FALSE)
+
+PWK_F_092920_CENPA_mm11 <- PWK_F_092920_CENPA_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+PWK_F_092920_CENPA <- read.delim(file = "noheader_fastp_PWK_F_092920_CENPA_mapped.sam", header = FALSE)
+
+PWK_F_092920_CENPA <- PWK_F_092920_CENPA[,c(1,2,3,4,12)]
+
+merged <- merge(PWK_F_092920_CENPA,PWK_F_092920_CENPA_mm11, by = "V1", all = FALSE)
+
+rm(PWK_F_092920_CENPA)
+rm(PWK_F_092920_CENPA_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "PWK_F_092920_CENPA_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+PWK_F_092920_input_mm11 <- read.delim(file = "noheader_fastp_PWK_F_092920_input_mapped.sam", header = FALSE)
+
+PWK_F_092920_input_mm11 <- PWK_F_092920_input_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+PWK_F_092920_input <- read.delim(file = "noheader_fastp_PWK_F_092920_input_mapped.sam", header = FALSE)
+
+PWK_F_092920_input <- PWK_F_092920_input[,c(1,2,3,4,12)]
+
+merged <- merge(PWK_F_092920_input,PWK_F_092920_input_mm11, by = "V1", all = FALSE)
+
+rm(PWK_F_092920_input)
+rm(PWK_F_092920_input_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "PWK_F_092920_input_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+PWK_M_101620_CENPA_mm11 <- read.delim(file = "noheader_fastp_PWK_M_101620_CENPA_mapped.sam", header = FALSE)
+
+PWK_M_101620_CENPA_mm11 <- PWK_M_101620_CENPA_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+PWK_M_101620_CENPA <- read.delim(file = "noheader_fastp_PWK_M_101620_CENPA_mapped.sam", header = FALSE)
+
+PWK_M_101620_CENPA <- PWK_M_101620_CENPA[,c(1,2,3,4,12)]
+
+merged <- merge(PWK_M_101620_CENPA,PWK_M_101620_CENPA_mm11, by = "V1", all = FALSE)
+
+rm(PWK_M_101620_CENPA)
+rm(PWK_M_101620_CENPA_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "PWK_M_101620_CENPA_mm11_cent_mappingoverlap.txt")
+
+rm(merged)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+PWK_M_101620_input_mm11 <- read.delim(file = "noheader_fastp_PWK_M_101620_input_mapped.sam", header = FALSE)
+
+PWK_M_101620_input_mm11 <- PWK_M_101620_input_mm11[,c(1,2,3,4,12)]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+
+PWK_M_101620_input <- read.delim(file = "noheader_fastp_PWK_M_101620_input_mapped.sam", header = FALSE)
+
+PWK_M_101620_input <- PWK_M_101620_input[,c(1,2,3,4,12)]
+
+merged <- merge(PWK_M_101620_input,PWK_M_101620_input_mm11, by = "V1", all = FALSE)
+
+rm(PWK_M_101620_input)
+rm(PWK_M_101620_input_mm11)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(merged, file = "PWK_M_101620_input_mm11_cent_mappingoverlap.txt")
+
+```
+
+
+Read overlap files in and add column for strain, CENPA v Input, and replicate
+```{r}
+path = "/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped"
+fs = list.files(path, pattern = glob2rx("*_mm11_cent_mappingoverlap.txt")) 
+
+for(f in fs){    
+  filename <- strsplit(f,"_", fixed = TRUE)
+  strain <- filename[[1]][1]
+  rep <- paste0(filename[[1]][2],"_",filename[[1]][3])
+  type <- filename[[1]][4]
+  sample <- paste0(filename[[1]][1],"_",filename[[1]][2],"_",filename[[1]][3],"_",filename[[1]][4])
+  samplefile <- paste0(sample,"_overlap")
+  fname <- file.path(path,f)
+  file = read.table(fname, header = TRUE)
+  file %>% 
+    dplyr::group_by(V3.x) %>%
+    dplyr::summarise(count = n()) %>%
+    t() -> summary_data
+  summary_data <- as.data.frame(summary_data)
+  colnames(summary_data) <- summary_data[1,]
+  summary_data <- summary_data[2,]
+  summary_data$sample <- sample
+  assign(sample,summary_data)
+  file <- file[,c(3,7,8)]
+  file$strain <- strain
+  file$rep <- rep
+  file$type <- type
+  assign(samplefile,file)
+}
+
+
+
+```
+
+
+Count the number of minor and major satellite mapped reads also map in the genome for each sample
+Write out table and combine with other analysis to integrate in sup table 1
+```{r}
+Count <- rbind(B6_F_092920_CENPA, B6_F_092920_input, 
+               B6_M_092920_CENPA, B6_M_092920_input, 
+               CAST_F_011921_CENPA, CAST_F_011921_input, 
+               CAST_M_011921_CENPA, CAST_M_011921_input, 
+               CAST_M_101620_CENPA, CAST_M_101620_input,
+               LEWES_F_011921_CENPA, LEWES_F_011921_input,
+               LEWES_F_012621_CENPA, LEWES_F_012621_input,
+               LEWES_M_011921_CENPA, LEWES_M_011921_input,
+               PWK_F_012621_CENPA, PWK_F_012621_input,
+               PWK_F_092920_CENPA, PWK_F_092920_input,
+               PWK_M_101620_CENPA, PWK_M_101620_input)
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genomexcentromere_mapped")
+write.table(Count, file = "consensusANDgenome_mapped.txt", row.names = FALSE)
+
+```
+
+Plot of where in the genome the reads are mapping
+First, merge all dfs
+```{r}
+All_merge <- rbind(B6_F_092920_CENPA_overlap, B6_F_092920_input_overlap, 
+               B6_M_092920_CENPA_overlap, B6_M_092920_input_overlap, 
+               CAST_F_011921_CENPA_overlap, CAST_F_011921_input_overlap, 
+               CAST_M_011921_CENPA_overlap, CAST_M_011921_input_overlap, 
+               CAST_M_101620_CENPA_overlap, CAST_M_101620_input_overlap,
+               LEWES_F_011921_CENPA_overlap, LEWES_F_011921_input_overlap,
+               LEWES_F_012621_CENPA_overlap, LEWES_F_012621_input_overlap,
+               LEWES_M_011921_CENPA_overlap, LEWES_M_011921_input_overlap,
+               PWK_F_012621_CENPA_overlap, PWK_F_012621_input_overlap,
+               PWK_F_092920_CENPA_overlap, PWK_F_092920_input_overlap,
+               PWK_M_101620_CENPA_overlap, PWK_M_101620_input_overlap)
+
+rm(B6_F_092920_CENPA_overlap, B6_F_092920_input_overlap, 
+               B6_M_092920_CENPA_overlap, B6_M_092920_input_overlap, 
+               CAST_F_011921_CENPA_overlap, CAST_F_011921_input_overlap, 
+               CAST_M_011921_CENPA_overlap, CAST_M_011921_input_overlap, 
+               CAST_M_101620_CENPA_overlap, CAST_M_101620_input_overlap,
+               LEWES_F_011921_CENPA_overlap, LEWES_F_011921_input_overlap,
+               LEWES_F_012621_CENPA_overlap, LEWES_F_012621_input_overlap,
+               LEWES_M_011921_CENPA_overlap, LEWES_M_011921_input_overlap,
+               PWK_F_012621_CENPA_overlap, PWK_F_012621_input_overlap,
+               PWK_F_092920_CENPA_overlap, PWK_F_092920_input_overlap,
+               PWK_M_101620_CENPA_overlap, PWK_M_101620_input_overlap)
+```
+
+Make chr column a factor and reorder levels
+```{r}
+All_merge$V3.y <- as.factor(All_merge$V3.y)
+All_merge$V3.y <- factor(All_merge$V3.y, c("chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chrX","chrY","chrM","chr1_GL456211v1_random","chr1_GL456221v1_random","chr1_GL456239v1_random","chr5_JH584299v1_random","chrX_GL456233v2_random","chrUn_GL456367v1","chrUn_GL456368v1","chrUn_GL456379v1","chrUn_GL456383v1","chrUn_GL456389v1","chrUn_GL456390v1","chrUn_GL456392v1","chrUn_GL456396v1","chrUn_JH584304v1","chrUn_MU069435v1"))
+```
+
+
+```{r}
+All_merge %>%
+  dplyr::filter(V3.x=="MinorSatelliteConsensusWongandRattner1988x3") %>%
+  ggplot(aes(x = as.numeric(V4.y), color = strain, linetype = type)) +
+  geom_freqpoly() +
+  scale_color_manual(values = c("#dda0dd","#228b22","#a020f0","#ff0000")) +
+  facet_wrap(~V3.y, scales = "free_x") +
+  theme(axis.text=element_text(size=14, face = "bold"), axis.text.x = element_text(angle = 45))
+
+```
+
+
+```{r}
+All_merge %>%
+  dplyr::filter(V3.x=="MajorSatelliteConsensusWongandRattner1988x3") %>%
+  ggplot(aes(x = as.numeric(V4.y), color = strain, linetype = type)) +
+  geom_freqpoly() +
+  scale_color_manual(values = c("#dda0dd","#228b22","#a020f0","#ff0000")) +
+  facet_wrap(~V3.y, scales = "free_x") +
+  theme(axis.text=element_text(size=14, face = "bold"), axis.text.x = element_text(angle = 45))
+```
+
+Find the coordinates that are the peaks for each of the satellites
+```{r}
+All_merge %>%
+  group_by(V3.x, V4.y, V3.y, strain, type) %>%
+  dplyr::summarise(count = n()) %>%
+  arrange(-count) -> All_merge_count
+
+All_merge_count %>%
+  dplyr::filter(V3.x=="MajorSatelliteConsensusWongandRattner1988x3") -> All_merge_count_major
+
+All_merge_count_major %>% 
+dplyr::filter(V3.y == 'chrUn_JH584304v1')
+
+```
+
+
+
+#########################################################
+In the CENP-A ChIP reads
+The ones that map to the genome but don't map to the consensus sequence
+where are those mapping??
+
+
+```{r}
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+B6_F_092920_CENPA_mm11 <- read.delim(file = "noheader_fastp_B6_F_092920_CENPA_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+B6_F_092920_CENPA <- read.delim(file = "noheader_fastp_B6_F_092920_CENPA_mapped.sam", header = FALSE)
+
+B6_F_092920_CENPA_genomeONLY <- setdiff(B6_F_092920_CENPA_mm11$V1,B6_F_092920_CENPA$V1)
+B6_F_092920_CENPA_mm11_genomeONLY <- B6_F_092920_CENPA_mm11[B6_F_092920_CENPA_mm11$V1 %in% B6_F_092920_CENPA_genomeONLY,]
+
+B6_F_092920_CENPA_mm11_genomeONLY <- B6_F_092920_CENPA_mm11_genomeONLY[,3:4]
+
+rm(B6_F_092920_CENPA)
+rm(B6_F_092920_CENPA_mm11)
+rm(B6_F_092920_CENPA_genomeONLY)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+B6_M_CENPA_mm11 <- read.delim(file = "noheader_fastp_B6_M_CENPA_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+B6_M_CENPA <- read.delim(file = "noheader_fastp_B6_M_CENPA_mapped.sam", header = FALSE)
+
+B6_M_CENPA_genomeONLY <- setdiff(B6_M_CENPA_mm11$V1,B6_M_CENPA$V1)
+B6_M_CENPA_mm11_genomeONLY <- B6_M_CENPA_mm11[B6_M_CENPA_mm11$V1 %in% B6_M_CENPA_genomeONLY,]
+
+B6_M_CENPA_mm11_genomeONLY <- B6_M_CENPA_mm11_genomeONLY[,3:4]
+
+rm(B6_M_CENPA)
+rm(B6_M_CENPA_mm11)
+rm(B6_M_CENPA_genomeONLY)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+CAST_F_011921_CENPA_mm11 <- read.delim(file = "noheader_fastp_CAST_F_011921_CENPA_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+CAST_F_011921_CENPA <- read.delim(file = "noheader_fastp_CAST_F_011921_CENPA_mapped.sam", header = FALSE)
+
+CAST_F_011921_CENPA_genomeONLY <- setdiff(CAST_F_011921_CENPA_mm11$V1,CAST_F_011921_CENPA$V1)
+CAST_F_011921_CENPA_mm11_genomeONLY <- CAST_F_011921_CENPA_mm11[CAST_F_011921_CENPA_mm11$V1 %in% CAST_F_011921_CENPA_genomeONLY,]
+
+CAST_F_011921_CENPA_mm11_genomeONLY <- CAST_F_011921_CENPA_mm11_genomeONLY[,3:4]
+
+rm(CAST_F_011921_CENPA)
+rm(CAST_F_011921_CENPA_mm11)
+rm(CAST_F_011921_CENPA_genomeONLY)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+CAST_M_011921_CENPA_mm11 <- read.delim(file = "noheader_fastp_CAST_M_011921_CENPA_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+CAST_M_011921_CENPA <- read.delim(file = "noheader_fastp_CAST_M_011921_CENPA_mapped.sam", header = FALSE)
+
+CAST_M_011921_CENPA_genomeONLY <- setdiff(CAST_M_011921_CENPA_mm11$V1,CAST_M_011921_CENPA$V1)
+CAST_M_011921_CENPA_mm11_genomeONLY <- CAST_M_011921_CENPA_mm11[CAST_M_011921_CENPA_mm11$V1 %in% CAST_M_011921_CENPA_genomeONLY,]
+
+CAST_M_011921_CENPA_mm11_genomeONLY <- CAST_M_011921_CENPA_mm11_genomeONLY[,3:4]
+
+rm(CAST_M_011921_CENPA)
+rm(CAST_M_011921_CENPA_mm11)
+rm(CAST_M_011921_CENPA_genomeONLY)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+CAST_M_101620_CENPA_mm11 <- read.delim(file = "noheader_fastp_CAST_M_101620_CENPA_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+CAST_M_101620_CENPA <- read.delim(file = "noheader_fastp_CAST_M_101620_CENPA_mapped.sam", header = FALSE)
+
+CAST_M_101620_CENPA_genomeONLY <- setdiff(CAST_M_101620_CENPA_mm11$V1,CAST_M_101620_CENPA$V1)
+CAST_M_101620_CENPA_mm11_genomeONLY <- CAST_M_101620_CENPA_mm11[CAST_M_101620_CENPA_mm11$V1 %in% CAST_M_101620_CENPA_genomeONLY,]
+
+CAST_M_101620_CENPA_mm11_genomeONLY <- CAST_M_101620_CENPA_mm11_genomeONLY[,3:4]
+
+rm(CAST_M_101620_CENPA)
+rm(CAST_M_101620_CENPA_mm11)
+rm(CAST_M_101620_CENPA_genomeONLY)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+LEWES_F_011921_CENPA_mm11 <- read.delim(file = "noheader_fastp_LEWES_F_011921_CENPA_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+LEWES_F_011921_CENPA <- read.delim(file = "noheader_fastp_LEWES_F_011921_CENPA_mapped.sam", header = FALSE)
+
+LEWES_F_011921_CENPA_genomeONLY <- setdiff(LEWES_F_011921_CENPA_mm11$V1,LEWES_F_011921_CENPA$V1)
+LEWES_F_011921_CENPA_mm11_genomeONLY <- LEWES_F_011921_CENPA_mm11[LEWES_F_011921_CENPA_mm11$V1 %in% LEWES_F_011921_CENPA_genomeONLY,]
+
+LEWES_F_011921_CENPA_mm11_genomeONLY <- LEWES_F_011921_CENPA_mm11_genomeONLY[,3:4]
+
+rm(LEWES_F_011921_CENPA)
+rm(LEWES_F_011921_CENPA_mm11)
+rm(LEWES_F_011921_CENPA_genomeONLY)
+
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+LEWES_F_012621_CENPA_mm11 <- read.delim(file = "noheader_fastp_LEWES_F_012621_CENPA_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+LEWES_F_012621_CENPA <- read.delim(file = "noheader_fastp_LEWES_F_012621_CENPA_mapped.sam", header = FALSE)
+
+LEWES_F_012621_CENPA_genomeONLY <- setdiff(LEWES_F_012621_CENPA_mm11$V1,LEWES_F_012621_CENPA$V1)
+LEWES_F_012621_CENPA_mm11_genomeONLY <- LEWES_F_012621_CENPA_mm11[LEWES_F_012621_CENPA_mm11$V1 %in% LEWES_F_012621_CENPA_genomeONLY,]
+
+LEWES_F_012621_CENPA_mm11_genomeONLY <- LEWES_F_012621_CENPA_mm11_genomeONLY[,3:4]
+
+rm(LEWES_F_012621_CENPA)
+rm(LEWES_F_012621_CENPA_mm11)
+rm(LEWES_F_012621_CENPA_genomeONLY)
+
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+LEWES_M_011921_CENPA_mm11 <- read.delim(file = "noheader_fastp_LEWES_M_011921_CENPA_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+LEWES_M_011921_CENPA <- read.delim(file = "noheader_fastp_LEWES_M_011921_CENPA_mapped.sam", header = FALSE)
+
+LEWES_M_011921_CENPA_genomeONLY <- setdiff(LEWES_M_011921_CENPA_mm11$V1,LEWES_M_011921_CENPA$V1)
+LEWES_M_011921_CENPA_mm11_genomeONLY <- LEWES_M_011921_CENPA_mm11[LEWES_M_011921_CENPA_mm11$V1 %in% LEWES_M_011921_CENPA_genomeONLY,]
+
+LEWES_M_011921_CENPA_mm11_genomeONLY <- LEWES_M_011921_CENPA_mm11_genomeONLY[,3:4]
+
+rm(LEWES_M_011921_CENPA)
+rm(LEWES_M_011921_CENPA_mm11)
+rm(LEWES_M_011921_CENPA_genomeONLY)
+
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+PWK_F_012621_CENPA_mm11 <- read.delim(file = "noheader_fastp_PWK_F_012621_CENPA_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+PWK_F_012621_CENPA <- read.delim(file = "noheader_fastp_PWK_F_012621_CENPA_mapped.sam", header = FALSE)
+
+PWK_F_012621_CENPA_genomeONLY <- setdiff(PWK_F_012621_CENPA_mm11$V1,PWK_F_012621_CENPA$V1)
+PWK_F_012621_CENPA_mm11_genomeONLY <- PWK_F_012621_CENPA_mm11[PWK_F_012621_CENPA_mm11$V1 %in% PWK_F_012621_CENPA_genomeONLY,]
+
+PWK_F_012621_CENPA_mm11_genomeONLY <- PWK_F_012621_CENPA_mm11_genomeONLY[,3:4]
+
+rm(PWK_F_012621_CENPA)
+rm(PWK_F_012621_CENPA_mm11)
+rm(PWK_F_012621_CENPA_genomeONLY)
+
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+PWK_F_092920_CENPA_mm11 <- read.delim(file = "noheader_fastp_PWK_F_092920_CENPA_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+PWK_F_092920_CENPA <- read.delim(file = "noheader_fastp_PWK_F_092920_CENPA_mapped.sam", header = FALSE)
+
+PWK_F_092920_CENPA_genomeONLY <- setdiff(PWK_F_092920_CENPA_mm11$V1,PWK_F_092920_CENPA$V1)
+PWK_F_092920_CENPA_mm11_genomeONLY <- PWK_F_092920_CENPA_mm11[PWK_F_092920_CENPA_mm11$V1 %in% PWK_F_092920_CENPA_genomeONLY,]
+
+PWK_F_092920_CENPA_mm11_genomeONLY <- PWK_F_092920_CENPA_mm11_genomeONLY[,3:4]
+
+rm(PWK_F_092920_CENPA)
+rm(PWK_F_092920_CENPA_mm11)
+rm(PWK_F_092920_CENPA_genomeONLY)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+PWK_M_101620_CENPA_mm11 <- read.delim(file = "noheader_fastp_PWK_M_101620_CENPA_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+PWK_M_101620_CENPA <- read.delim(file = "noheader_fastp_PWK_M_101620_CENPA_mapped.sam", header = FALSE)
+
+PWK_M_101620_CENPA_genomeONLY <- setdiff(PWK_M_101620_CENPA_mm11$V1,PWK_M_101620_CENPA$V1)
+PWK_M_101620_CENPA_mm11_genomeONLY <- PWK_M_101620_CENPA_mm11[PWK_M_101620_CENPA_mm11$V1 %in% PWK_M_101620_CENPA_genomeONLY,]
+
+PWK_M_101620_CENPA_mm11_genomeONLY <- PWK_M_101620_CENPA_mm11_genomeONLY[,3:4]
+
+rm(PWK_M_101620_CENPA)
+rm(PWK_M_101620_CENPA_mm11)
+rm(PWK_M_101620_CENPA_genomeONLY)
+
+
+
+```
+
+
+
+```{r}
+B6_F_092920_CENPA_mm11_genomeONLY$strain <- c("C57BL/6J")
+B6_M_CENPA_mm11_genomeONLY$strain <- c("C57BL/6J")
+CAST_F_011921_CENPA_mm11_genomeONLY$strain <- c("CAST/EiJ")
+CAST_M_011921_CENPA_mm11_genomeONLY$strain <- c("CAST/EiJ")
+CAST_M_101620_CENPA_mm11_genomeONLY$strain <- c("CAST/EiJ")
+LEWES_F_011921_CENPA_mm11_genomeONLY$strain <- c("LEWES/EiJ")
+LEWES_F_012621_CENPA_mm11_genomeONLY$strain <- c("LEWES/EiJ")
+LEWES_M_011921_CENPA_mm11_genomeONLY$strain <- c("LEWES/EiJ")
+PWK_F_012621_CENPA_mm11_genomeONLY$strain <- c("PWK/PhJ")
+PWK_F_092920_CENPA_mm11_genomeONLY$strain <- c("PWK/PhJ")
+PWK_M_101620_CENPA_mm11_genomeONLY$strain <- c("PWK/PhJ")
+
+genomeONLY_merge <- rbind(B6_F_092920_CENPA_mm11_genomeONLY,B6_M_CENPA_mm11_genomeONLY, CAST_F_011921_CENPA_mm11_genomeONLY, CAST_M_011921_CENPA_mm11_genomeONLY, CAST_M_101620_CENPA_mm11_genomeONLY, LEWES_F_011921_CENPA_mm11_genomeONLY, LEWES_F_012621_CENPA_mm11_genomeONLY, LEWES_M_011921_CENPA_mm11_genomeONLY, PWK_F_012621_CENPA_mm11_genomeONLY, PWK_F_092920_CENPA_mm11_genomeONLY, PWK_M_101620_CENPA_mm11_genomeONLY)
+
+
+rm(B6_F_092920_CENPA_mm11_genomeONLY,B6_M_CENPA_mm11_genomeONLY, CAST_F_011921_CENPA_mm11_genomeONLY, CAST_M_011921_CENPA_mm11_genomeONLY, CAST_M_101620_CENPA_mm11_genomeONLY, LEWES_F_011921_CENPA_mm11_genomeONLY, LEWES_F_012621_CENPA_mm11_genomeONLY, LEWES_M_011921_CENPA_mm11_genomeONLY, PWK_F_012621_CENPA_mm11_genomeONLY, PWK_F_092920_CENPA_mm11_genomeONLY, PWK_M_101620_CENPA_mm11_genomeONLY)
+
+genomeONLY_merge$type <- c("CENPA")
+
+```
+
+
+```{r}
+genomeONLY_merge %>%
+  ggplot(aes(x = as.numeric(V4), color = strain)) +
+  geom_freqpoly() +
+  scale_color_manual(values = c("#dda0dd","#228b22","#a020f0","#ff0000")) +
+  facet_wrap(~V3)
+
+```
+
+Input
+
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+B6_F_092920_input_mm11 <- read.delim(file = "noheader_fastp_B6_F_092920_input_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+B6_F_092920_input <- read.delim(file = "noheader_fastp_B6_F_092920_input_mapped.sam", header = FALSE)
+
+B6_F_092920_input_genomeONLY <- setdiff(B6_F_092920_input_mm11$V1,B6_F_092920_input$V1)
+B6_F_092920_input_mm11_genomeONLY <- B6_F_092920_input_mm11[B6_F_092920_input_mm11$V1 %in% B6_F_092920_input_genomeONLY,]
+
+B6_F_092920_input_mm11_genomeONLY <- B6_F_092920_input_mm11_genomeONLY[,3:4]
+
+rm(B6_F_092920_input)
+rm(B6_F_092920_input_mm11)
+rm(B6_F_092920_input_genomeONLY)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+B6_M_input_mm11 <- read.delim(file = "noheader_fastp_B6_M_input_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+B6_M_input <- read.delim(file = "noheader_fastp_B6_M_input_mapped.sam", header = FALSE)
+
+B6_M_input_genomeONLY <- setdiff(B6_M_input_mm11$V1,B6_M_input$V1)
+B6_M_input_mm11_genomeONLY <- B6_M_input_mm11[B6_M_input_mm11$V1 %in% B6_M_input_genomeONLY,]
+
+B6_M_input_mm11_genomeONLY <- B6_M_input_mm11_genomeONLY[,3:4]
+
+rm(B6_M_input)
+rm(B6_M_input_mm11)
+rm(B6_M_input_genomeONLY)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+CAST_F_011921_input_mm11 <- read.delim(file = "noheader_fastp_CAST_F_011921_input_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+CAST_F_011921_input <- read.delim(file = "noheader_fastp_CAST_F_011921_input_mapped.sam", header = FALSE)
+
+CAST_F_011921_input_genomeONLY <- setdiff(CAST_F_011921_input_mm11$V1,CAST_F_011921_input$V1)
+CAST_F_011921_input_mm11_genomeONLY <- CAST_F_011921_input_mm11[CAST_F_011921_input_mm11$V1 %in% CAST_F_011921_input_genomeONLY,]
+
+CAST_F_011921_input_mm11_genomeONLY <- CAST_F_011921_input_mm11_genomeONLY[,3:4]
+
+rm(CAST_F_011921_input)
+rm(CAST_F_011921_input_mm11)
+rm(CAST_F_011921_input_genomeONLY)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+CAST_M_011921_input_mm11 <- read.delim(file = "noheader_fastp_CAST_M_011921_input_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+CAST_M_011921_input <- read.delim(file = "noheader_fastp_CAST_M_011921_input_mapped.sam", header = FALSE)
+
+CAST_M_011921_input_genomeONLY <- setdiff(CAST_M_011921_input_mm11$V1,CAST_M_011921_input$V1)
+CAST_M_011921_input_mm11_genomeONLY <- CAST_M_011921_input_mm11[CAST_M_011921_input_mm11$V1 %in% CAST_M_011921_input_genomeONLY,]
+
+CAST_M_011921_input_mm11_genomeONLY <- CAST_M_011921_input_mm11_genomeONLY[,3:4]
+
+rm(CAST_M_011921_input)
+rm(CAST_M_011921_input_mm11)
+rm(CAST_M_011921_input_genomeONLY)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+CAST_M_101620_input_mm11 <- read.delim(file = "noheader_fastp_CAST_M_101620_input_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+CAST_M_101620_input <- read.delim(file = "noheader_fastp_CAST_M_101620_input_mapped.sam", header = FALSE)
+
+CAST_M_101620_input_genomeONLY <- setdiff(CAST_M_101620_input_mm11$V1,CAST_M_101620_input$V1)
+CAST_M_101620_input_mm11_genomeONLY <- CAST_M_101620_input_mm11[CAST_M_101620_input_mm11$V1 %in% CAST_M_101620_input_genomeONLY,]
+
+CAST_M_101620_input_mm11_genomeONLY <- CAST_M_101620_input_mm11_genomeONLY[,3:4]
+
+rm(CAST_M_101620_input)
+rm(CAST_M_101620_input_mm11)
+rm(CAST_M_101620_input_genomeONLY)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+LEWES_F_011921_input_mm11 <- read.delim(file = "noheader_fastp_LEWES_F_011921_input_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+LEWES_F_011921_input <- read.delim(file = "noheader_fastp_LEWES_F_011921_input_mapped.sam", header = FALSE)
+
+LEWES_F_011921_input_genomeONLY <- setdiff(LEWES_F_011921_input_mm11$V1,LEWES_F_011921_input$V1)
+LEWES_F_011921_input_mm11_genomeONLY <- LEWES_F_011921_input_mm11[LEWES_F_011921_input_mm11$V1 %in% LEWES_F_011921_input_genomeONLY,]
+
+LEWES_F_011921_input_mm11_genomeONLY <- LEWES_F_011921_input_mm11_genomeONLY[,3:4]
+
+rm(LEWES_F_011921_input)
+rm(LEWES_F_011921_input_mm11)
+rm(LEWES_F_011921_input_genomeONLY)
+
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+LEWES_F_012621_input_mm11 <- read.delim(file = "noheader_fastp_LEWES_F_012621_input_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+LEWES_F_012621_input <- read.delim(file = "noheader_fastp_LEWES_F_012621_input_mapped.sam", header = FALSE)
+
+LEWES_F_012621_input_genomeONLY <- setdiff(LEWES_F_012621_input_mm11$V1,LEWES_F_012621_input$V1)
+LEWES_F_012621_input_mm11_genomeONLY <- LEWES_F_012621_input_mm11[LEWES_F_012621_input_mm11$V1 %in% LEWES_F_012621_input_genomeONLY,]
+
+LEWES_F_012621_input_mm11_genomeONLY <- LEWES_F_012621_input_mm11_genomeONLY[,3:4]
+
+rm(LEWES_F_012621_input)
+rm(LEWES_F_012621_input_mm11)
+rm(LEWES_F_012621_input_genomeONLY)
+
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+LEWES_M_011921_input_mm11 <- read.delim(file = "noheader_fastp_LEWES_M_011921_input_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+LEWES_M_011921_input <- read.delim(file = "noheader_fastp_LEWES_M_011921_input_mapped.sam", header = FALSE)
+
+LEWES_M_011921_input_genomeONLY <- setdiff(LEWES_M_011921_input_mm11$V1,LEWES_M_011921_input$V1)
+LEWES_M_011921_input_mm11_genomeONLY <- LEWES_M_011921_input_mm11[LEWES_M_011921_input_mm11$V1 %in% LEWES_M_011921_input_genomeONLY,]
+
+LEWES_M_011921_input_mm11_genomeONLY <- LEWES_M_011921_input_mm11_genomeONLY[,3:4]
+
+rm(LEWES_M_011921_input)
+rm(LEWES_M_011921_input_mm11)
+rm(LEWES_M_011921_input_genomeONLY)
+
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+PWK_F_012621_input_mm11 <- read.delim(file = "noheader_fastp_PWK_F_012621_input_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+PWK_F_012621_input <- read.delim(file = "noheader_fastp_PWK_F_012621_input_mapped.sam", header = FALSE)
+
+PWK_F_012621_input_genomeONLY <- setdiff(PWK_F_012621_input_mm11$V1,PWK_F_012621_input$V1)
+PWK_F_012621_input_mm11_genomeONLY <- PWK_F_012621_input_mm11[PWK_F_012621_input_mm11$V1 %in% PWK_F_012621_input_genomeONLY,]
+
+PWK_F_012621_input_mm11_genomeONLY <- PWK_F_012621_input_mm11_genomeONLY[,3:4]
+
+rm(PWK_F_012621_input)
+rm(PWK_F_012621_input_mm11)
+rm(PWK_F_012621_input_genomeONLY)
+
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+PWK_F_092920_input_mm11 <- read.delim(file = "noheader_fastp_PWK_F_092920_input_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+PWK_F_092920_input <- read.delim(file = "noheader_fastp_PWK_F_092920_input_mapped.sam", header = FALSE)
+
+PWK_F_092920_input_genomeONLY <- setdiff(PWK_F_092920_input_mm11$V1,PWK_F_092920_input$V1)
+PWK_F_092920_input_mm11_genomeONLY <- PWK_F_092920_input_mm11[PWK_F_092920_input_mm11$V1 %in% PWK_F_092920_input_genomeONLY,]
+
+PWK_F_092920_input_mm11_genomeONLY <- PWK_F_092920_input_mm11_genomeONLY[,3:4]
+
+rm(PWK_F_092920_input)
+rm(PWK_F_092920_input_mm11)
+rm(PWK_F_092920_input_genomeONLY)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/genome_mapped")
+PWK_M_101620_input_mm11 <- read.delim(file = "noheader_fastp_PWK_M_101620_input_mapped.sam", header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+PWK_M_101620_input <- read.delim(file = "noheader_fastp_PWK_M_101620_input_mapped.sam", header = FALSE)
+
+PWK_M_101620_input_genomeONLY <- setdiff(PWK_M_101620_input_mm11$V1,PWK_M_101620_input$V1)
+PWK_M_101620_input_mm11_genomeONLY <- PWK_M_101620_input_mm11[PWK_M_101620_input_mm11$V1 %in% PWK_M_101620_input_genomeONLY,]
+
+PWK_M_101620_input_mm11_genomeONLY <- PWK_M_101620_input_mm11_genomeONLY[,3:4]
+
+rm(PWK_M_101620_input)
+rm(PWK_M_101620_input_mm11)
+rm(PWK_M_101620_input_genomeONLY)
+```
+
+```{r}
+B6_F_092920_input_mm11_genomeONLY$strain <- c("C57BL/6J")
+B6_M_input_mm11_genomeONLY$strain <- c("C57BL/6J")
+CAST_F_011921_input_mm11_genomeONLY$strain <- c("CAST/EiJ")
+CAST_M_011921_input_mm11_genomeONLY$strain <- c("CAST/EiJ")
+CAST_M_101620_input_mm11_genomeONLY$strain <- c("CAST/EiJ")
+LEWES_F_011921_input_mm11_genomeONLY$strain <- c("LEWES/EiJ")
+LEWES_F_012621_input_mm11_genomeONLY$strain <- c("LEWES/EiJ")
+LEWES_M_011921_input_mm11_genomeONLY$strain <- c("LEWES/EiJ")
+PWK_F_012621_input_mm11_genomeONLY$strain <- c("PWK/PhJ")
+PWK_F_092920_input_mm11_genomeONLY$strain <- c("PWK/PhJ")
+PWK_M_101620_input_mm11_genomeONLY$strain <- c("PWK/PhJ")
+
+genomeONLY_input <- rbind(B6_F_092920_input_mm11_genomeONLY,B6_M_input_mm11_genomeONLY, CAST_F_011921_input_mm11_genomeONLY, CAST_M_011921_input_mm11_genomeONLY, CAST_M_101620_input_mm11_genomeONLY, LEWES_F_011921_input_mm11_genomeONLY, LEWES_F_012621_input_mm11_genomeONLY, LEWES_M_011921_input_mm11_genomeONLY, PWK_F_012621_input_mm11_genomeONLY, PWK_F_092920_input_mm11_genomeONLY, PWK_M_101620_input_mm11_genomeONLY)
+
+
+rm(B6_F_092920_input_mm11_genomeONLY,B6_M_input_mm11_genomeONLY, CAST_F_011921_input_mm11_genomeONLY, CAST_M_011921_input_mm11_genomeONLY, CAST_M_101620_input_mm11_genomeONLY, LEWES_F_011921_input_mm11_genomeONLY, LEWES_F_012621_input_mm11_genomeONLY, LEWES_M_011921_input_mm11_genomeONLY, PWK_F_012621_input_mm11_genomeONLY, PWK_F_092920_input_mm11_genomeONLY, PWK_M_101620_input_mm11_genomeONLY)
+
+genomeONLY_input$type <- c("input")
+
+```
+
+
+```{r}
+genomeONLY <- rbind(genomeONLY_merge,genomeONLY_input)
+rm(genomeONLY_merge,genomeONLY_input)
+
+```
+
+Make chr column a factor and reorder levels
+```{r}
+genomeONLY$V3 <- as.factor(genomeONLY$V3)
+genomeONLY$V3 <- factor(genomeONLY$V3, c("chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chrX","chrY","chrM","chr1_GL456210v1_random","chr1_GL456211v1_random","chr1_GL456212v1_random","chr1_GL456221v1_random","chr1_GL456239v1_random","chr1_MU069434v1_random","chr4_JH584295v1_random","chr5_GL456354v1_random","chr5_JH584296v1_random","chr5_JH584297v1_random","chr5_JH584298v1_random","chr5_JH584299v1_random","chr7_GL456219v1_random","chrX_GL456233v2_random","chrY_JH584300v1_random","chrY_JH584301v1_random","chrY_JH584302v1_random","chrY_JH584303v1_random","chrUn_GL456359v1","chrUn_GL456360v1","chrUn_GL456366v1","chrUn_GL456367v1","chrUn_GL456368v1","chrUn_GL456370v1","chrUn_GL456372v1","chrUn_GL456378v1","chrUn_GL456379v1","chrUn_GL456381v1","chrUn_GL456382v1","chrUn_GL456383v1","chrUn_GL456385v1","chrUn_GL456387v1","chrUn_GL456389v1","chrUn_GL456390v1","chrUn_GL456392v1","chrUn_GL456394v1","chrUn_GL456396v1","chrUn_JH584304v1","chrUn_MU069435v1",""))
+```
+
+```{r}
+genomeONLY %>%
+  ggplot(aes(x = as.numeric(V4), color = strain, linetype = type)) +
+  geom_freqpoly() +
+  scale_color_manual(values = c("#dda0dd","#228b22","#a020f0","#ff0000")) +
+  facet_wrap(~V3, scales = "free_x") +
+  theme(axis.text=element_text(size=14, face = "bold"), axis.text.x = element_text(angle = 45)) 
+  
+
+```
+
+
+

@@ -1,0 +1,325 @@
+---
+title: "CENPAChIP_mapped_consensus_heatmap"
+output: html_document
+---
+
+################################################
+##########load required libraries###############
+###############################################
+```{r setup, include=FALSE}
+library(data.table)
+library(plyr)
+library(dplyr)
+library(stringr)
+library(tidyr)
+```
+
+
+Run loop for minor satellite and major satellite
+One file at a time
+```{r}
+
+######################################
+#########read mapped kmers file########
+######################################
+setwd('/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped')
+k31file <- read.delim(file = 'noheader_fastp_B6_F_092920_CENPA_mapped.sam', header = FALSE, sep = '\t')
+
+######################################
+#########subset and split columns########
+######################################
+k31file <- select(k31file,V2,V3,V4,V10)
+
+k31minor <- filter(k31file, V3 == 'MinorSatelliteConsensusWongandRattner1988x3')
+k31minor_r <- filter(k31minor, V2 == 16)
+k31minor_f <- filter(k31minor, V2 == 0)
+rm(k31minor)
+
+#########################################################################
+##############create a dataframe for minor sequences###################
+#########################################################################
+#Minor satellite
+probscoreminsat_f <-data.frame(matrix(nrow = 406,ncol = 5))
+colnames(probscoreminsat_f) <- c('A','T','G','C','N')
+probscoreminsat_f[is.na(probscoreminsat_f)]<-0
+
+probscoreminsat_r <-data.frame(matrix(nrow = 406,ncol = 5))
+colnames(probscoreminsat_r) <- c('A','T','G','C','N')
+probscoreminsat_r[is.na(probscoreminsat_r)]<-0
+
+#Major satellite
+probscoremajsat_f <-data.frame(matrix(nrow = 702,ncol = 5))
+colnames(probscoremajsat_f) <- c('A','T','G','C','N')
+probscoremajsat_f[is.na(probscoremajsat_f)]<-0
+
+probscoremajsat_r <-data.frame(matrix(nrow = 702,ncol = 5))
+colnames(probscoremajsat_r) <- c('A','T','G','C','N')
+probscoremajsat_r[is.na(probscoremajsat_r)]<-0
+
+#########################################
+########Minor satellite forward#########
+#########################################
+
+df <- k31minor_f
+  for (i in 1:nrow(df)) {
+    read <- as.vector(df[i,4])
+    readlength <- nchar(read)
+    read <- strsplit(read,split="")
+    rownumber <- df[i,3]
+      for (j in 1:readlength) {
+      letter <- read[[1]][j]
+      if (letter == "A"){
+        probscoreminsat_f[rownumber,1]=probscoreminsat_f[rownumber,1]+1
+      } else if (letter == "T") {
+        probscoreminsat_f[rownumber,2]=probscoreminsat_f[rownumber,2]+1
+      } else if (letter == "G") {
+        probscoreminsat_f[rownumber,3]=probscoreminsat_f[rownumber,3]+1
+      } else if (letter == "C") {
+        probscoreminsat_f[rownumber,4]=probscoreminsat_f[rownumber,4]+1
+      } else if (letter == "N") {
+        probscoreminsat_f[rownumber,5]=probscoreminsat_f[rownumber,5]+1
+      } 
+        rownumber = rownumber + 1
+      }
+    }
+
+probscoreminsat_f[,6] <- probscoreminsat_f[,1] + probscoreminsat_f[,2] + probscoreminsat_f[,3] + probscoreminsat_f[,4] + probscoreminsat_f[,5]
+#  probscoreminsat_f[,1] <- probscoreminsat_f[,1]/probscoreminsat_f[,5]
+#  probscoreminsat_f[,2] <- probscoreminsat_f[,2]/probscoreminsat_f[,5]
+#  probscoreminsat_f[,3] <- probscoreminsat_f[,3]/probscoreminsat_f[,5]
+#  probscoreminsat_f[,4] <- probscoreminsat_f[,4]/probscoreminsat_f[,5]
+#write out table  
+setwd('/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped')
+write.table(probscoreminsat_f,file = "B6_F_092920_CENPA.consensus.minor.forward.txt", sep = '\t', quote = FALSE, row.names = FALSE)
+```
+
+
+```{r}
+########################################
+########Minor satellite reverse#########
+#########################################
+  
+df <- k31minor_r
+  for (i in 1:nrow(df)) {
+    read <- as.vector(df[i,4])
+    readlength <- nchar(read)
+    read_DNA <- DNAString(read)
+    read <- as.character(reverseComplement(read_DNA))
+    read <- strsplit(read,split="")
+    rownumber <- df[i,3]
+      for (j in 1:readlength) {
+      letter <- read[[1]][j]
+      if (letter == "A"){
+        probscoreminsat_r[rownumber,1]=probscoreminsat_r[rownumber,1]+1
+      } else if (letter == "T") {
+        probscoreminsat_r[rownumber,2]=probscoreminsat_r[rownumber,2]+1
+      } else if (letter == "G") {
+        probscoreminsat_r[rownumber,3]=probscoreminsat_r[rownumber,3]+1
+      } else if (letter == "C") {
+        probscoreminsat_r[rownumber,4]=probscoreminsat_r[rownumber,4]+1
+      } else if (letter == "N") {
+        probscoreminsat_r[rownumber,5]=probscoreminsat_r[rownumber,5]+1
+      } 
+        rownumber = rownumber + 1
+  }
+}
+  
+  probscoreminsat_r[,6] <- probscoreminsat_r[,1] + probscoreminsat_r[,2] + probscoreminsat_r[,3] + probscoreminsat_r[,4] + probscoreminsat_r[,5]
+#  probscoreminsat_r[,1] <- probscoreminsat_r[,1]/probscoreminsat_r[,5]
+#  probscoreminsat_r[,2] <- probscoreminsat_r[,2]/probscoreminsat_r[,5]
+#  probscoreminsat_r[,3] <- probscoreminsat_r[,3]/probscoreminsat_r[,5]
+#  probscoreminsat_r[,4] <- probscoreminsat_r[,4]/probscoreminsat_r[,5]
+  #write out table  
+  
+setwd('/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped')
+write.table(probscoreminsat_r,file = "B6_F_092920_CENPA.consensus.minor.reverse.txt", sep = '\t', quote = FALSE, row.names=FALSE)
+
+```
+
+Major Satellite
+need to edit code before running
+```{r}
+
+#########################################################################
+##############create a dataframe for major sequences###################
+#########################################################################
+
+k31major <- filter(k31file, V3 == 'MajorSatelliteConsensusWongandRattner1988x3')
+k31major_r <- filter(k31major, V2 == 16)
+k31major_f <- filter(k31major, V2 == 0)
+rm(k31major)
+
+#########################################
+########Major satellite forward#########
+#########################################
+  
+  df <- k31major_f
+  for (i in 1:nrow(df)) {
+    kmer <- as.vector(df[i,1])
+    kmer <- strsplit(kmer,split="")
+    kmercount <- df[i,2]
+    rownumber <- df[i,5] 
+    for (j in 1:31) {
+      letter <- kmer[[1]][j]
+      if (letter == "A"){
+        probscoremajsat_f[rownumber,1]=probscoremajsat_f[rownumber,1]+kmercount
+      } else if (letter == "T") {
+        probscoremajsat_f[rownumber,2]=probscoremajsat_f[rownumber,2]+kmercount
+      } else if (letter == "G") {
+        probscoremajsat_f[rownumber,3]=probscoremajsat_f[rownumber,3]+kmercount
+      } else if (letter == "C") {
+        probscoremajsat_f[rownumber,4]=probscoremajsat_f[rownumber,4]+kmercount
+      } 
+        rownumber = rownumber + 1
+    }
+  }
+  
+  probscoremajsat_f[,5] <- probscoremajsat_f[,1] + probscoremajsat_f[,2] + probscoremajsat_f[,3] + probscoremajsat_f[,4]
+#  probscoremajsat_f[,1] <- probscoremajsat_f[,1]/probscoremajsat_f[,5]
+#  probscoremajsat_f[,2] <- probscoremajsat_f[,2]/probscoremajsat_f[,5]
+#  probscoremajsat_f[,3] <- probscoremajsat_f[,3]/probscoremajsat_f[,5]
+#  probscoremajsat_f[,4] <- probscoremajsat_f[,4]/probscoremajsat_f[,5]
+  #write out table  
+  setwd('/projects/dumont-lab/uma/k31/consensus_separated')
+  write.table(probscoremajsat_f,file = "$1.consensus.major.forward.txt", sep = '\t', quote = FALSE, row.names = FALSE)
+  
+  ########################################
+  ########major satellite reverse#########
+  #########################################
+  
+  df <- k31major_r
+  for (i in 1:nrow(df)) {
+    kmer <- as.vector(df[i,1])
+    kmer <- strsplit(kmer,split="")
+    kmercount <- df[i,2]
+    rownumber <- df[i,5] + 30
+    for (j in 1:31) {
+      letter <- kmer[[1]][j]
+      if (letter == "A"){
+        probscoremajsat_r[rownumber,1]=probscoremajsat_r[rownumber,1]+kmercount
+      } else if (letter == "T") {
+        probscoremajsat_r[rownumber,2]=probscoremajsat_r[rownumber,2]+kmercount
+      } else if (letter == "G") {
+        probscoremajsat_r[rownumber,3]=probscoremajsat_r[rownumber,3]+kmercount
+      } else if (letter == "C") {
+        probscoremajsat_r[rownumber,4]=probscoremajsat_r[rownumber,4]+kmercount
+      } 
+        rownumber = rownumber - 1
+    }
+  }
+  
+  probscoremajsat_r[,5] <- probscoremajsat_r[,1] + probscoremajsat_r[,2] + probscoremajsat_r[,3] + probscoremajsat_r[,4]
+#  probscoremajsat_r[,1] <- probscoremajsat_r[,1]/probscoremajsat_r[,5]
+#  probscoremajsat_r[,2] <- probscoremajsat_r[,2]/probscoremajsat_r[,5]
+#  probscoremajsat_r[,3] <- probscoremajsat_r[,3]/probscoremajsat_r[,5]
+#  probscoremajsat_r[,4] <- probscoremajsat_r[,4]/probscoremajsat_r[,5]
+#write out table  
+  setwd('/projects/dumont-lab/uma/k31/consensus_separated')
+  write.table(probscoremajsat_r,file = "$1.consensus.major.reverse.txt", sep = '\t', quote = FALSE, row.names = FALSE)
+  
+```
+
+Heatmap with nucleotide enrichment ChIP over input 
+without consensus nucleotide information
+```{r}
+path = "/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped"
+fs = list.files(path, pattern = glob2rx("*.minor.forward.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  n = gsub("", "", f)
+  df = read.table(fname, header = TRUE)
+  df <- df[1:120,] + df[121:240,] + df[241:360,]
+  df[,1] <- df[,1]/df[,6]
+  df[,2] <- df[,2]/df[,6]
+  df[,3] <- df[,3]/df[,6]
+  df[,4] <- df[,4]/df[,6]
+  df <- df[,1:4]
+  assign(n,df)
+}
+
+
+path = "/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped"
+fs = list.files(path, pattern = glob2rx("*.minor.reverse.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  n = gsub("", "", f)
+  df = read.table(fname, header = TRUE)
+  assign(n,df)
+}
+
+
+```
+
+
+Consensus nucleotide
+```{r setup, include=FALSE}
+minorsatellite <- 'GGAAAATGATAAAAACCACACTGTAGAACATATTAGATGAGTGAGTTACACTGAAAAACACATTCGTTGGAAACGGGATTTGTAGAACAGTGTATATCAATGAGTTACAATGAGAAACAT'
+minorsatellite <- strsplit(minorsatellite,split="")
+
+minorsatellite_c<- 'CCTTTTACTATTTTTGGTGTGACATCTTGTATAATCTACTCACTCAATGTGACTTTTTGTGTAAGCAACCTTTGCCCTAAACATCTTGTCACATATAGTTACTCAATGTTACTCTTTGTA'
+
+minorsatellite_c <- strsplit(minorsatellite_c,split="")
+```
+
+EDIT CODE***
+```{r cars}
+setwd('/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped')
+path = "~/Desktop/Dumont_Lab/k-merDigging/centromere_kmers/polymorphisms/data/consensus_separated"
+fs = list.files(path, pattern = glob2rx("*.consensus.minor.forward.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  n = gsub("", "", f)
+  df = read.table(fname, header = TRUE)
+  dfnew <- data.frame(matrix(nrow = 120,ncol = 3))
+  colnames(dfnew) <- c('CONSENSUS','ALTERNATE','TOTAL')
+  dfnew[is.na(dfnew)] <- 0
+  df <- df[1:120,] + df[121:240,] + df[241:360,]
+  for (i in 1:nrow(df)){
+    letter <- minorsatellite[[1]][i]
+    consensus <- df[i,letter]
+    alt <- df[i,5] - df[i,letter]
+    dfnew[i,1] <- consensus
+    dfnew[i,2] <- alt
+    dfnew[i,3] <- df[i,5]
+  }
+  assign(n,dfnew)
+  rm(df)
+  rm(dfnew)
+}
+
+
+
+```
+
+Reverse direction
+```{r}
+path = "~/Desktop/Dumont_Lab/k-merDigging/centromere_kmers/polymorphisms/data/consensus_separated"
+fs = list.files(path, pattern = glob2rx("*.consensus.minor.reverse.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  n = gsub("", "", f)
+  df = read.table(fname, header = TRUE)
+  dfnew <- data.frame(matrix(nrow = 120,ncol = 3))
+  colnames(dfnew) <- c('CONSENSUS','ALTERNATE','TOTAL')
+  dfnew[is.na(dfnew)] <- 0
+  df <- df[1:120,] + df[121:240,] + df[241:360,]
+  for (i in 1:nrow(df)){
+    letter <- minorsatellite_c[[1]][i]
+    consensus <- df[i,letter]
+    alt <- df[i,5] - df[i,letter]
+    dfnew[i,1] <- consensus
+    dfnew[i,2] <- alt
+    dfnew[i,3] <- df[i,5]
+  }
+  assign(n,dfnew)
+  rm(df)
+  rm(dfnew)
+}
+
+```
+```
+
