@@ -607,8 +607,8 @@ head(merged_subset)
 You can also embed plots, for example:
 
 ```{r}
-setwd("/projects/dumont-lab/uma/centromere_mapping/CENPA_ChIP")
-merged <- read.table(file = "ChIP_Forward_mapped_normalized_SatSeparated_ChIPoverInput.txt", header = TRUE)
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+merged <- read.table(file = "ChIP_Forward_mapped_normalized_SatSeparated_ChIPoverInput.txt", header = TRUE, sep = ' ')
 
 ```
 
@@ -687,6 +687,13 @@ setwd("/projects/dumont-lab/uma/centromere_mapping/CENPA_ChIP")
 write.table(merged , file = "ChIP_Forward_mapped_normalized_SatSeparated_Fstats.txt", row.names = FALSE)
 write.table(top100 , file = "top100_ChIP_Forward_mapped_normalized_SatSeparated_Fstats.txt", row.names = FALSE)
 ```
+
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+merged <- read.delim(file = "ChIP_Forward_mapped_normalized_SatSeparated_Fstats.txt", header = TRUE, sep = ' ')
+```
+
+
 Split by sat sequence and sort by F statistic
 ```{r}
 minor <- merged[merged$V3 == 'MinorSatelliteConsensusWongandRattner1988x3',]
@@ -1237,6 +1244,11 @@ setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
 write.table(merged, file = "EditDistance_MappedReads_CENPA_Input_ReadCountNorm.txt")
 ```
 
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped")
+merged <- read.table(file = "EditDistance_MappedReads_CENPA_Input_ReadCountNorm.txt")
+```
+
 Make merged tidy
 ```{r}
 merged %>% 
@@ -1317,8 +1329,24 @@ merged_minor_norm_tidy %>%
   theme_classic() +
   facet_grid(rows = vars(Strain))
 ```
+Lineplot
+```{r}
+ggplot(merged_minor_norm_tidy, aes(x = Mismatches, y = frequency, color = Strain)) +
+geom_line() +
+theme_classic() 
+```
 
+geom_smooth
+```{r}
+ggplot(merged_minor_norm_tidy, aes(x = Mismatches, y = frequency, color = Strain)) +
+  geom_smooth(se = FALSE) +
+  xlab("Mismatches to minor satellite consensus sequence") + 
+  ylab("ChIP/Input Enrichment") +
+  ylim(0, 120) +
+  scale_color_manual(values = c("#dda0dd","#228b22","#a020f0","#ff0000")) +
+  theme_classic() 
 
+```
 
 ```{r}
 tidy <- separate(
@@ -2154,8 +2182,164 @@ rm(PWK_M_101620_CENPA_genomeONLY)
 
 ```
 
+Uniformity test individual samples
+```{r}
+B6_F_092920_CENPA_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> B6_F_092920_CENPA_mm11_genomeONLY_uniformity
+
+B6_F_092920_CENPA_mm11_genomeONLY_uniformity$mean <- mean(B6_F_092920_CENPA_mm11_genomeONLY_uniformity$count)
+
+B6_F_092920_CENPA_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(B6_F_092920_CENPA_mm11_genomeONLY_uniformity$count)
+
+B6_F_092920_CENPA_mm11_genomeONLY_uniformity$cumsummean <- cumsum(B6_F_092920_CENPA_mm11_genomeONLY_uniformity$mean)
+
+ks.test(B6_F_092920_CENPA_mm11_genomeONLY_uniformity$cumsumcount,B6_F_092920_CENPA_mm11_genomeONLY_uniformity$cumsummean)
+
+```
 
 
+```{r}
+B6_M_CENPA_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> B6_M_CENPA_mm11_genomeONLY_uniformity
+
+B6_M_CENPA_mm11_genomeONLY_uniformity$mean <- mean(B6_M_CENPA_mm11_genomeONLY_uniformity$count)
+
+B6_M_CENPA_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(B6_M_CENPA_mm11_genomeONLY_uniformity$count)
+
+B6_M_CENPA_mm11_genomeONLY_uniformity$cumsummean <- cumsum(B6_M_CENPA_mm11_genomeONLY_uniformity$mean)
+
+ks.test(B6_M_CENPA_mm11_genomeONLY_uniformity$cumsumcount,B6_M_CENPA_mm11_genomeONLY_uniformity$cumsummean)
+
+```
+```{r}
+CAST_F_011921_CENPA_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> CAST_F_011921_CENPA_mm11_genomeONLY_uniformity
+
+CAST_F_011921_CENPA_mm11_genomeONLY_uniformity$mean <- mean(CAST_F_011921_CENPA_mm11_genomeONLY_uniformity$count)
+
+CAST_F_011921_CENPA_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(CAST_F_011921_CENPA_mm11_genomeONLY_uniformity$count)
+
+CAST_F_011921_CENPA_mm11_genomeONLY_uniformity$cumsummean <- cumsum(CAST_F_011921_CENPA_mm11_genomeONLY_uniformity$mean)
+
+ks.test(CAST_F_011921_CENPA_mm11_genomeONLY_uniformity$cumsumcount,CAST_F_011921_CENPA_mm11_genomeONLY_uniformity$cumsummean)
+```
+
+```{r}
+CAST_M_011921_CENPA_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> CAST_M_011921_CENPA_mm11_genomeONLY_uniformity
+
+CAST_M_011921_CENPA_mm11_genomeONLY_uniformity$mean <- mean(CAST_M_011921_CENPA_mm11_genomeONLY_uniformity$count)
+
+CAST_M_011921_CENPA_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(CAST_M_011921_CENPA_mm11_genomeONLY_uniformity$count)
+
+CAST_M_011921_CENPA_mm11_genomeONLY_uniformity$cumsummean <- cumsum(CAST_M_011921_CENPA_mm11_genomeONLY_uniformity$mean)
+
+ks.test(CAST_M_011921_CENPA_mm11_genomeONLY_uniformity$cumsumcount,CAST_M_011921_CENPA_mm11_genomeONLY_uniformity$cumsummean)
+```
+
+```{r}
+CAST_M_101620_CENPA_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> CAST_M_101620_CENPA_mm11_genomeONLY_uniformity
+
+CAST_M_101620_CENPA_mm11_genomeONLY_uniformity$mean <- mean(CAST_M_101620_CENPA_mm11_genomeONLY_uniformity$count)
+
+CAST_M_101620_CENPA_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(CAST_M_101620_CENPA_mm11_genomeONLY_uniformity$count)
+
+CAST_M_101620_CENPA_mm11_genomeONLY_uniformity$cumsummean <- cumsum(CAST_M_101620_CENPA_mm11_genomeONLY_uniformity$mean)
+
+ks.test(CAST_M_101620_CENPA_mm11_genomeONLY_uniformity$cumsumcount,CAST_M_101620_CENPA_mm11_genomeONLY_uniformity$cumsummean)
+```
+
+```{r}
+LEWES_F_011921_CENPA_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> LEWES_F_011921_CENPA_mm11_genomeONLY_uniformity
+
+LEWES_F_011921_CENPA_mm11_genomeONLY_uniformity$mean <- mean(LEWES_F_011921_CENPA_mm11_genomeONLY_uniformity$count)
+
+LEWES_F_011921_CENPA_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(LEWES_F_011921_CENPA_mm11_genomeONLY_uniformity$count)
+
+LEWES_F_011921_CENPA_mm11_genomeONLY_uniformity$cumsummean <- cumsum(LEWES_F_011921_CENPA_mm11_genomeONLY_uniformity$mean)
+
+ks.test(LEWES_F_011921_CENPA_mm11_genomeONLY_uniformity$cumsumcount,LEWES_F_011921_CENPA_mm11_genomeONLY_uniformity$cumsummean)
+```
+
+```{r}
+LEWES_F_012621_CENPA_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> LEWES_F_012621_CENPA_mm11_genomeONLY_uniformity
+
+LEWES_F_012621_CENPA_mm11_genomeONLY_uniformity$mean <- mean(LEWES_F_012621_CENPA_mm11_genomeONLY_uniformity$count)
+
+LEWES_F_012621_CENPA_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(LEWES_F_012621_CENPA_mm11_genomeONLY_uniformity$count)
+
+LEWES_F_012621_CENPA_mm11_genomeONLY_uniformity$cumsummean <- cumsum(LEWES_F_012621_CENPA_mm11_genomeONLY_uniformity$mean)
+
+ks.test(LEWES_F_012621_CENPA_mm11_genomeONLY_uniformity$cumsumcount,LEWES_F_012621_CENPA_mm11_genomeONLY_uniformity$cumsummean)
+```
+
+```{r}
+LEWES_M_011921_CENPA_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> LEWES_M_011921_CENPA_mm11_genomeONLY_uniformity
+
+LEWES_M_011921_CENPA_mm11_genomeONLY_uniformity$mean <- mean(LEWES_M_011921_CENPA_mm11_genomeONLY_uniformity$count)
+
+LEWES_M_011921_CENPA_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(LEWES_M_011921_CENPA_mm11_genomeONLY_uniformity$count)
+
+LEWES_M_011921_CENPA_mm11_genomeONLY_uniformity$cumsummean <- cumsum(LEWES_M_011921_CENPA_mm11_genomeONLY_uniformity$mean)
+
+ks.test(LEWES_M_011921_CENPA_mm11_genomeONLY_uniformity$cumsumcount,LEWES_M_011921_CENPA_mm11_genomeONLY_uniformity$cumsummean)
+```
+
+```{r}
+PWK_F_012621_CENPA_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> PWK_F_012621_CENPA_mm11_genomeONLY_uniformity
+
+PWK_F_012621_CENPA_mm11_genomeONLY_uniformity$mean <- mean(PWK_F_012621_CENPA_mm11_genomeONLY_uniformity$count)
+
+PWK_F_012621_CENPA_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(PWK_F_012621_CENPA_mm11_genomeONLY_uniformity$count)
+
+PWK_F_012621_CENPA_mm11_genomeONLY_uniformity$cumsummean <- cumsum(PWK_F_012621_CENPA_mm11_genomeONLY_uniformity$mean)
+
+ks.test(PWK_F_012621_CENPA_mm11_genomeONLY_uniformity$cumsumcount,PWK_F_012621_CENPA_mm11_genomeONLY_uniformity$cumsummean)
+```
+
+```{r}
+PWK_F_092920_CENPA_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> PWK_F_092920_CENPA_mm11_genomeONLY_uniformity
+
+PWK_F_092920_CENPA_mm11_genomeONLY_uniformity$mean <- mean(PWK_F_092920_CENPA_mm11_genomeONLY_uniformity$count)
+
+PWK_F_092920_CENPA_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(PWK_F_092920_CENPA_mm11_genomeONLY_uniformity$count)
+
+PWK_F_092920_CENPA_mm11_genomeONLY_uniformity$cumsummean <- cumsum(PWK_F_092920_CENPA_mm11_genomeONLY_uniformity$mean)
+
+ks.test(PWK_F_092920_CENPA_mm11_genomeONLY_uniformity$cumsumcount,PWK_F_092920_CENPA_mm11_genomeONLY_uniformity$cumsummean)
+```
+
+```{r}
+PWK_M_101620_CENPA_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> PWK_M_101620_CENPA_mm11_genomeONLY_uniformity
+
+PWK_M_101620_CENPA_mm11_genomeONLY_uniformity$mean <- mean(PWK_M_101620_CENPA_mm11_genomeONLY_uniformity$count)
+
+PWK_M_101620_CENPA_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(PWK_M_101620_CENPA_mm11_genomeONLY_uniformity$count)
+
+PWK_M_101620_CENPA_mm11_genomeONLY_uniformity$cumsummean <- cumsum(PWK_M_101620_CENPA_mm11_genomeONLY_uniformity$mean)
+
+ks.test(PWK_M_101620_CENPA_mm11_genomeONLY_uniformity$cumsumcount,PWK_M_101620_CENPA_mm11_genomeONLY_uniformity$cumsummean)
+```
+
+Combining replicates
 ```{r}
 B6_F_092920_CENPA_mm11_genomeONLY$strain <- c("C57BL/6J")
 B6_M_CENPA_mm11_genomeONLY$strain <- c("C57BL/6J")
@@ -2178,6 +2362,63 @@ genomeONLY_merge$type <- c("CENPA")
 
 ```
 
+Strain aggregate KS test
+```{r}
+genomeONLY_merge %>% 
+  group_by(V3, V4, strain) %>%
+  summarize(count = n()) -> genomeONLY_merge_uniformity
+  
+genomeONLY_merge_uniformity_B6 <- genomeONLY_merge_uniformity[genomeONLY_merge_uniformity$strain == "C57BL/6J",]
+
+genomeONLY_merge_uniformity_CAST <- genomeONLY_merge_uniformity[genomeONLY_merge_uniformity$strain == "CAST/EiJ",]
+
+genomeONLY_merge_uniformity_LEWES <- genomeONLY_merge_uniformity[genomeONLY_merge_uniformity$strain == "LEWES/EiJ",]
+
+genomeONLY_merge_uniformity_PWK <- genomeONLY_merge_uniformity[genomeONLY_merge_uniformity$strain == "PWK/PhJ",]
+```
+
+B6 KS test
+```{r}
+genomeONLY_merge_uniformity_B6$mean <- mean(genomeONLY_merge_uniformity_B6$count)
+
+genomeONLY_merge_uniformity_B6$cumsumcount <- cumsum(genomeONLY_merge_uniformity_B6$count)
+
+genomeONLY_merge_uniformity_B6$cumsummean <- cumsum(genomeONLY_merge_uniformity_B6$mean)
+
+ks.test(genomeONLY_merge_uniformity_B6$cumsumcount,genomeONLY_merge_uniformity_B6$cumsummean)
+
+```
+
+CAST KS test
+```{r}
+genomeONLY_merge_uniformity_CAST$mean <- mean(genomeONLY_merge_uniformity_CAST$count)
+
+genomeONLY_merge_uniformity_CAST$cumsumcount <- cumsum(genomeONLY_merge_uniformity_CAST$count)
+
+genomeONLY_merge_uniformity_CAST$cumsummean <- cumsum(genomeONLY_merge_uniformity_CAST$mean)
+
+ks.test(genomeONLY_merge_uniformity_CAST$cumsumcount,genomeONLY_merge_uniformity_CAST$cumsummean)
+```
+
+```{r}
+genomeONLY_merge_uniformity_LEWES$mean <- mean(genomeONLY_merge_uniformity_LEWES$count)
+
+genomeONLY_merge_uniformity_LEWES$cumsumcount <- cumsum(genomeONLY_merge_uniformity_LEWES$count)
+
+genomeONLY_merge_uniformity_LEWES$cumsummean <- cumsum(genomeONLY_merge_uniformity_LEWES$mean)
+
+ks.test(genomeONLY_merge_uniformity_LEWES$cumsumcount,genomeONLY_merge_uniformity_LEWES$cumsummean)
+```
+
+```{r}
+genomeONLY_merge_uniformity_PWK$mean <- mean(genomeONLY_merge_uniformity_PWK$count)
+
+genomeONLY_merge_uniformity_PWK$cumsumcount <- cumsum(genomeONLY_merge_uniformity_PWK$count)
+
+genomeONLY_merge_uniformity_PWK$cumsummean <- cumsum(genomeONLY_merge_uniformity_PWK$mean)
+
+ks.test(genomeONLY_merge_uniformity_PWK$cumsumcount,genomeONLY_merge_uniformity_PWK$cumsummean)
+```
 
 ```{r}
 genomeONLY_merge %>%
@@ -2187,6 +2428,7 @@ genomeONLY_merge %>%
   facet_wrap(~V3)
 
 ```
+
 
 Input
 
@@ -2360,6 +2602,172 @@ rm(PWK_M_101620_input)
 rm(PWK_M_101620_input_mm11)
 rm(PWK_M_101620_input_genomeONLY)
 ```
+```{r}
+B6_F_092920_input_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> B6_F_092920_input_mm11_genomeONLY_uniformity
+
+B6_F_092920_input_mm11_genomeONLY_uniformity$mean <- mean(B6_F_092920_input_mm11_genomeONLY_uniformity$count)
+
+B6_F_092920_input_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(B6_F_092920_input_mm11_genomeONLY_uniformity$count)
+
+B6_F_092920_input_mm11_genomeONLY_uniformity$cumsummean <- cumsum(B6_F_092920_input_mm11_genomeONLY_uniformity$mean)
+
+ks.test(B6_F_092920_input_mm11_genomeONLY_uniformity$cumsumcount,B6_F_092920_input_mm11_genomeONLY_uniformity$cumsummean)
+
+
+```
+
+```{r}
+B6_M_input_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> B6_M_input_mm11_genomeONLY_uniformity
+
+B6_M_input_mm11_genomeONLY_uniformity$mean <- mean(B6_M_input_mm11_genomeONLY_uniformity$count)
+
+B6_M_input_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(B6_M_input_mm11_genomeONLY_uniformity$count)
+
+B6_M_input_mm11_genomeONLY_uniformity$cumsummean <- cumsum(B6_M_input_mm11_genomeONLY_uniformity$mean)
+
+ks.test(B6_M_input_mm11_genomeONLY_uniformity$cumsumcount,B6_M_input_mm11_genomeONLY_uniformity$cumsummean)
+
+```
+
+```{r}
+CAST_F_011921_input_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> CAST_F_011921_input_mm11_genomeONLY_uniformity
+
+CAST_F_011921_input_mm11_genomeONLY_uniformity$mean <- mean(CAST_F_011921_input_mm11_genomeONLY_uniformity$count)
+
+CAST_F_011921_input_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(CAST_F_011921_input_mm11_genomeONLY_uniformity$count)
+
+CAST_F_011921_input_mm11_genomeONLY_uniformity$cumsummean <- cumsum(CAST_F_011921_input_mm11_genomeONLY_uniformity$mean)
+
+ks.test(CAST_F_011921_input_mm11_genomeONLY_uniformity$cumsumcount,CAST_F_011921_input_mm11_genomeONLY_uniformity$cumsummean)
+
+```
+
+```{r}
+CAST_M_011921_input_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> CAST_M_011921_input_mm11_genomeONLY_uniformity
+
+CAST_M_011921_input_mm11_genomeONLY_uniformity$mean <- mean(CAST_M_011921_input_mm11_genomeONLY_uniformity$count)
+
+CAST_M_011921_input_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(CAST_M_011921_input_mm11_genomeONLY_uniformity$count)
+
+CAST_M_011921_input_mm11_genomeONLY_uniformity$cumsummean <- cumsum(CAST_M_011921_input_mm11_genomeONLY_uniformity$mean)
+
+ks.test(CAST_M_011921_input_mm11_genomeONLY_uniformity$cumsumcount,CAST_M_011921_input_mm11_genomeONLY_uniformity$cumsummean)
+
+```
+
+```{r}
+CAST_M_101620_input_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> CAST_M_101620_input_mm11_genomeONLY_uniformity
+
+CAST_M_101620_input_mm11_genomeONLY_uniformity$mean <- mean(CAST_M_101620_input_mm11_genomeONLY_uniformity$count)
+
+CAST_M_101620_input_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(CAST_M_101620_input_mm11_genomeONLY_uniformity$count)
+
+CAST_M_101620_input_mm11_genomeONLY_uniformity$cumsummean <- cumsum(CAST_M_101620_input_mm11_genomeONLY_uniformity$mean)
+
+ks.test(CAST_M_101620_input_mm11_genomeONLY_uniformity$cumsumcount,CAST_M_101620_input_mm11_genomeONLY_uniformity$cumsummean)
+
+```
+
+```{r}
+LEWES_F_011921_input_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> LEWES_F_011921_input_mm11_genomeONLY_uniformity
+
+LEWES_F_011921_input_mm11_genomeONLY_uniformity$mean <- mean(LEWES_F_011921_input_mm11_genomeONLY_uniformity$count)
+
+LEWES_F_011921_input_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(LEWES_F_011921_input_mm11_genomeONLY_uniformity$count)
+
+LEWES_F_011921_input_mm11_genomeONLY_uniformity$cumsummean <- cumsum(LEWES_F_011921_input_mm11_genomeONLY_uniformity$mean)
+
+ks.test(LEWES_F_011921_input_mm11_genomeONLY_uniformity$cumsumcount,LEWES_F_011921_input_mm11_genomeONLY_uniformity$cumsummean)
+
+```
+
+```{r}
+LEWES_F_012621_input_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> LEWES_F_012621_input_mm11_genomeONLY_uniformity
+
+LEWES_F_012621_input_mm11_genomeONLY_uniformity$mean <- mean(LEWES_F_012621_input_mm11_genomeONLY_uniformity$count)
+
+LEWES_F_012621_input_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(LEWES_F_012621_input_mm11_genomeONLY_uniformity$count)
+
+LEWES_F_012621_input_mm11_genomeONLY_uniformity$cumsummean <- cumsum(LEWES_F_012621_input_mm11_genomeONLY_uniformity$mean)
+
+ks.test(LEWES_F_012621_input_mm11_genomeONLY_uniformity$cumsumcount,LEWES_F_012621_input_mm11_genomeONLY_uniformity$cumsummean)
+
+```
+
+```{r}
+LEWES_M_011921_input_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> LEWES_M_011921_input_mm11_genomeONLY_uniformity
+
+LEWES_M_011921_input_mm11_genomeONLY_uniformity$mean <- mean(LEWES_M_011921_input_mm11_genomeONLY_uniformity$count)
+
+LEWES_M_011921_input_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(LEWES_M_011921_input_mm11_genomeONLY_uniformity$count)
+
+LEWES_M_011921_input_mm11_genomeONLY_uniformity$cumsummean <- cumsum(LEWES_M_011921_input_mm11_genomeONLY_uniformity$mean)
+
+ks.test(LEWES_M_011921_input_mm11_genomeONLY_uniformity$cumsumcount,LEWES_M_011921_input_mm11_genomeONLY_uniformity$cumsummean)
+
+```
+
+```{r}
+PWK_F_012621_input_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> PWK_F_012621_input_mm11_genomeONLY_uniformity
+
+PWK_F_012621_input_mm11_genomeONLY_uniformity$mean <- mean(PWK_F_012621_input_mm11_genomeONLY_uniformity$count)
+
+PWK_F_012621_input_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(PWK_F_012621_input_mm11_genomeONLY_uniformity$count)
+
+PWK_F_012621_input_mm11_genomeONLY_uniformity$cumsummean <- cumsum(PWK_F_012621_input_mm11_genomeONLY_uniformity$mean)
+
+ks.test(PWK_F_012621_input_mm11_genomeONLY_uniformity$cumsumcount,PWK_F_012621_input_mm11_genomeONLY_uniformity$cumsummean)
+
+```
+
+```{r}
+PWK_F_092920_input_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> PWK_F_092920_input_mm11_genomeONLY_uniformity
+
+PWK_F_092920_input_mm11_genomeONLY_uniformity$mean <- mean(PWK_F_092920_input_mm11_genomeONLY_uniformity$count)
+
+PWK_F_092920_input_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(PWK_F_092920_input_mm11_genomeONLY_uniformity$count)
+
+PWK_F_092920_input_mm11_genomeONLY_uniformity$cumsummean <- cumsum(PWK_F_092920_input_mm11_genomeONLY_uniformity$mean)
+
+ks.test(PWK_F_092920_input_mm11_genomeONLY_uniformity$cumsumcount,PWK_F_092920_input_mm11_genomeONLY_uniformity$cumsummean)
+
+```
+
+```{r}
+PWK_M_101620_input_mm11_genomeONLY %>% 
+  group_by(V3, V4) %>%
+  summarize(count = n()) -> PWK_M_101620_input_mm11_genomeONLY_uniformity
+
+PWK_M_101620_input_mm11_genomeONLY_uniformity$mean <- mean(PWK_M_101620_input_mm11_genomeONLY_uniformity$count)
+
+PWK_M_101620_input_mm11_genomeONLY_uniformity$cumsumcount <- cumsum(PWK_M_101620_input_mm11_genomeONLY_uniformity$count)
+
+PWK_M_101620_input_mm11_genomeONLY_uniformity$cumsummean <- cumsum(PWK_M_101620_input_mm11_genomeONLY_uniformity$mean)
+
+ks.test(PWK_M_101620_input_mm11_genomeONLY_uniformity$cumsumcount,PWK_M_101620_input_mm11_genomeONLY_uniformity$cumsummean)
+
+```
+
 
 ```{r}
 B6_F_092920_input_mm11_genomeONLY$strain <- c("C57BL/6J")
@@ -2380,6 +2788,70 @@ genomeONLY_input <- rbind(B6_F_092920_input_mm11_genomeONLY,B6_M_input_mm11_geno
 rm(B6_F_092920_input_mm11_genomeONLY,B6_M_input_mm11_genomeONLY, CAST_F_011921_input_mm11_genomeONLY, CAST_M_011921_input_mm11_genomeONLY, CAST_M_101620_input_mm11_genomeONLY, LEWES_F_011921_input_mm11_genomeONLY, LEWES_F_012621_input_mm11_genomeONLY, LEWES_M_011921_input_mm11_genomeONLY, PWK_F_012621_input_mm11_genomeONLY, PWK_F_092920_input_mm11_genomeONLY, PWK_M_101620_input_mm11_genomeONLY)
 
 genomeONLY_input$type <- c("input")
+
+```
+
+strain aggregate
+```{r}
+genomeONLY_input %>% 
+  group_by(V3, V4, strain) %>%
+  summarize(count = n()) -> genomeONLY_input_uniformity
+  
+genomeONLY_input_uniformity_B6 <- genomeONLY_input_uniformity[genomeONLY_input_uniformity$strain == "C57BL/6J",]
+
+genomeONLY_input_uniformity_CAST <- genomeONLY_input_uniformity[genomeONLY_input_uniformity$strain == "CAST/EiJ",]
+
+genomeONLY_input_uniformity_LEWES <- genomeONLY_input_uniformity[genomeONLY_input_uniformity$strain == "LEWES/EiJ",]
+
+genomeONLY_input_uniformity_PWK <- genomeONLY_input_uniformity[genomeONLY_input_uniformity$strain == "PWK/PhJ",]
+
+```
+
+B6
+```{r}
+genomeONLY_input_uniformity_B6$mean <- mean(genomeONLY_input_uniformity_B6$count)
+
+genomeONLY_input_uniformity_B6$cumsumcount <- cumsum(genomeONLY_input_uniformity_B6$count)
+
+genomeONLY_input_uniformity_B6$cumsummean <- cumsum(genomeONLY_input_uniformity_B6$mean)
+
+ks.test(genomeONLY_input_uniformity_B6$cumsumcount,genomeONLY_input_uniformity_B6$cumsummean)
+
+```
+
+CAST
+```{r}
+genomeONLY_input_uniformity_CAST$mean <- mean(genomeONLY_input_uniformity_CAST$count)
+
+genomeONLY_input_uniformity_CAST$cumsumcount <- cumsum(genomeONLY_input_uniformity_CAST$count)
+
+genomeONLY_input_uniformity_CAST$cumsummean <- cumsum(genomeONLY_input_uniformity_CAST$mean)
+
+ks.test(genomeONLY_input_uniformity_CAST$cumsumcount,genomeONLY_input_uniformity_CAST$cumsummean)
+
+```
+
+LEWES
+```{r}
+genomeONLY_input_uniformity_LEWES$mean <- mean(genomeONLY_input_uniformity_LEWES$count)
+
+genomeONLY_input_uniformity_LEWES$cumsumcount <- cumsum(genomeONLY_input_uniformity_LEWES$count)
+
+genomeONLY_input_uniformity_LEWES$cumsummean <- cumsum(genomeONLY_input_uniformity_LEWES$mean)
+
+ks.test(genomeONLY_input_uniformity_LEWES$cumsumcount,genomeONLY_input_uniformity_LEWES$cumsummean)
+
+```
+
+PWK
+```{r}
+genomeONLY_input_uniformity_PWK$mean <- mean(genomeONLY_input_uniformity_PWK$count)
+
+genomeONLY_input_uniformity_PWK$cumsumcount <- cumsum(genomeONLY_input_uniformity_PWK$count)
+
+genomeONLY_input_uniformity_PWK$cumsummean <- cumsum(genomeONLY_input_uniformity_PWK$mean)
+
+ks.test(genomeONLY_input_uniformity_PWK$cumsumcount,genomeONLY_input_uniformity_PWK$cumsummean)
 
 ```
 

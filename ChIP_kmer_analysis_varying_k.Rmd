@@ -1,0 +1,1317 @@
+---
+title: "ChIP_kmer_analysis_varying_k"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(gplots)
+library(stringr)
+library(ggrepel)
+library(matrixStats)
+```
+This analysis performs the same analysis in ChIP_kmer_analysis.Rmd with different values of k 
+k = 7, 15, 23
+The results of k31 are visualized alongside all the values of k
+
+#Make k-mer tables
+##Script 1: kmercomposition.sh
+```{bash}
+#!/bin/sh
+
+#############Load modules################
+#module load singularity
+
+##########################################
+#The following code is to process fastq files and make k-mer tables from them
+#This script and all associated scripts must be in the same directory as the files
+
+#############Change file path################
+FILEDIR="/projects/dumont-lab/uma/CENPA_ChIP/clumpify/fastq"
+#############################################
+
+#Count number of lines (divide by 4 for number of reads)
+#generate and submit kmer composition script
+
+cd ${FILEDIR}
+
+for fastq in *.fastq; do
+  [ -f "$fastq" ] || break
+  echo "script has found $fastq"
+  ./kmercomposition.script.generation.sh "$fastq" 23 #change k here
+  ./python.script.submit.generation.sh "$fastq" 23 #change k here
+  sbatch kmercomposition."$fastq".k23.sh #change k here
+done
+```
+
+##script 2: kmercomposition.script.generation.sh
+```{bash}
+cat> kmerscore.$1.k$2.py << EOF
+#!/urs/bin/env python
+
+###Change input and output path##
+pathinput='/projects/dumont-lab/uma/CENPA_ChIP/clumpify/fastq/$1'
+pathoutput='/fastscratch/uma/k$2/$1.k$2.kmerscore.txt'
+
+##Function1:This function reads in a fastq file and scores kmers in a dictionary
+def ReadFASTQ(fastq,k):
+    kmerscore = {}
+    chars='ATGCNatgcn'
+    i=0
+    n=0
+    for line in fastq:
+        line=line.rstrip()
+        i+=1
+	if line[0] in chars and i%4 !=0: ##some have > sign so switch chars to > AND i check to make sure phred score line is not read.
+            for j in range(len(line)-(k-1)):
+                kmer=line[j:j+k]
+                n+=1
+                if 'N' in kmer:
+                    continue
+                if 'n' in kmer:
+                    continue
+                if kmer in kmerscore:
+                    kmerscore[kmer] = kmerscore[kmer] + 1
+                elif kmer not in kmerscore:
+                    kmerscore[kmer]=1
+    print('kmer score from fastq file done')
+    return kmerscore
+
+k=$2
+
+###read in fastq file
+fastq=open(pathinput,'r')
+kmerscore=ReadFASTQ(fastq,k)
+fileoutput=open(pathoutput,'w')
+for kmer,score in kmerscore.items():
+    fileoutput.write(kmer)
+    fileoutput.write('\t')
+    fileoutput.write(str(score))
+    fileoutput.write('\n')
+fileoutput.close()
+print('kmer tab separated file made')
+EOF
+```
+
+##script 3: python.script.submit.generation.sh
+```{bash}
+cat> kmercomposition.$1.k$2.sh << EOF
+#!/bin/sh
+
+#SBATCH -o %j.out # STDOUT
+#SBATCH -e %j.err # STDERR
+#SBATCH --mem 700G
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=72:00:00
+
+##Load modules##
+module load singularity
+
+#Set path#
+#FILEDIR="/projects/dumont-lab/uma/CENPA_ChIP/clumpify/fastq"
+
+singularity exec /home/arorau/python/miniconda.sif python /projects/dumont-lab/uma/CENPA_ChIP/clumpify/fastq/kmerscore.$1.k$2.py
+
+echo "job complete"
+
+EOF
+```
+
+#Merge k-mer files for each strain and value of k
+##merge_strain.py
+```{python}
+# !/urs/bin/env python
+
+##import modules
+#import matplotlib
+#matplotlib.use('Agg')
+#import matplotlib.pyplot as plt
+import pandas as pd
+#import Bio
+#import numpy as np
+#import statsmodels.api as sm
+print('libraries imported')
+
+
+##Set paths of k15 txt file and reference k15 file
+pathinput6 = '/fastscratch/uma/k15/clumpify_fastp_B6_F_092920_CENPA.fastq.k15.kmerscore.txt'
+pathinput7 = '/fastscratch/uma/k15/clumpify_fastp_B6_F_092920_H3K4me3.fastq.k15.kmerscore.txt'
+pathinput8 = '/fastscratch/uma/k15/clumpify_fastp_B6_F_092920_IgG.fastq.k15.kmerscore.txt'
+pathinput9 = '/fastscratch/uma/k15/clumpify_fastp_B6_F_092920_input.fastq.k15.kmerscore.txt'
+pathinput10 = '/fastscratch/uma/k15/clumpify_fastp_B6_M_CENPA.fastq.k15.kmerscore.txt'
+pathinput25 = '/fastscratch/uma/k15/clumpify_fastp_B6_M_input.fastq.k15.kmerscore.txt'
+
+##Read in data frame
+kmers = pd.read_table(pathinput6, sep='\t', header = None)
+kmers.columns = ['kmer', 'B6_F_092920_CENPA']
+kmers['B6_F_092920_CENPA'] = (kmers['B6_F_092920_CENPA'] / 36271535)
+print('dataframe 6 has been read')
+
+##Read in other dataframe
+kmers2 = pd.read_table(pathinput7, sep='\t', header = None)
+kmers2.columns = ['kmer', 'B6_F_092920_H3K4me3']
+kmers2['B6_F_092920_H3K4me3'] = (kmers2['B6_F_092920_H3K4me3'] / 46129572)
+print('dataframe 7 has been read')
+
+##Merge dataframes
+merged = pd.merge(kmers, kmers2, on = 'kmer', how = 'inner')
+merged = merged.replace(to_replace = 'NaN', value = 0)
+print('dataframes 6 and 7 have been merged')
+kmers2 = None
+
+##Read in next data frame
+kmers = pd.read_table(pathinput8, sep='\t', header = None)
+kmers.columns = ['kmer', 'B6_F_092920_IgG']
+kmers['B6_F_092920_IgG'] = (kmers['B6_F_092920_IgG'] / 32468697)
+print('dataframe 8 has been read')
+
+##Merge dataframes
+merged = pd.merge(merged, kmers, on = 'kmer', how = 'inner')
+merged = merged.replace(to_replace = 'NaN', value = 0)
+print('dataframe 8 has been merged in')
+
+##Read in next data frame
+kmers = pd.read_table(pathinput9, sep='\t', header = None)
+kmers.columns = ['kmer', 'B6_F_092920_input']
+kmers['B6_F_092920_input'] = (kmers['B6_F_092920_input'] / 37563353)
+print('dataframe 9 has been read')
+
+##Merge dataframes
+merged = pd.merge(merged, kmers, on = 'kmer', how = 'inner')
+merged = merged.replace(to_replace = 'NaN', value = 0)
+print('dataframe 9 has been merged in')
+
+##Read in next data frame
+kmers = pd.read_table(pathinput10, sep='\t', header = None)
+kmers.columns = ['kmer', 'B6_M_CENPA']
+kmers['B6_M_CENPA'] = (kmers['B6_M_CENPA'] / 32438312)
+print('dataframe 10 has been read')
+
+##Merge dataframes
+merged = pd.merge(merged, kmers, on = 'kmer', how = 'inner')
+merged = merged.replace(to_replace = 'NaN', value = 0)
+print('dataframe 10 has been merged in')
+
+##Read in next data frame
+kmers = pd.read_table(pathinput25, sep='\t', header = None)
+kmers.columns = ['kmer', 'B6_M_input']
+kmers['B6_M_input'] = (kmers['B6_M_input'] / 77147880)
+print('dataframe 25 has been read')
+
+##Merge dataframes
+merged = pd.merge(merged, kmers, on = 'kmer', how = 'inner')
+merged = merged.replace(to_replace = 'NaN', value = 0)
+print('dataframe 25 has been merged in')
+
+
+#ChIPoverInput
+merged['B6_F_092920_CENPAoverInput'] = (merged['B6_F_092920_CENPA']/merged['B6_F_092920_input'])
+merged['B6_M_CENPAoverInput'] = (merged['B6_M_CENPA']/merged['B6_M_input'])
+
+####Write out file
+merged.to_csv('/fastscratch/uma/B6.ChIP.inner.k15.kmerscore.txt')
+print('merged dataframe written out')
+```
+
+
+R ANALYSIS START HERE
+Read in kmer tables for all strains
+k15
+```{r cars}
+setwd("/fastscratch/uma/")
+CAST_k15_kmers <- read.csv(file = "CAST.ChIP.inner.k15.kmerscore.txt", header = TRUE)
+
+#CAST_k15_kmers$ChIPoverInputMean <- rowMeans(CAST_k15_kmers[,11:13])
+#CAST_k15_kmers <- CAST_k15_kmers[order(-CAST_k15_kmers$ChIPoverInputMean),]
+#CAST_k15_kmers$ChIPoverInputSD <- rowSds(as.matrix(CAST_k15_kmers[,11:13]))
+#total<- nrow(CAST_k15_kmers)
+
+#Top percentage wise
+#CAST_k15_0.01 <- CAST_k15_kmers[1:(total/100),]
+#CAST_k15_0.001 <- CAST_k15_kmers[1:(total/1000),]
+
+#write.table(CAST_k15_0.01$kmer, file = "CAST.1percent.TopEnrich.k15mers.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+#write.table(CAST_k15_0.001$kmer, file = "CAST.0.1percent.TopEnrich.k15mers.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+#write.table(CAST_k15_0.01, file = "CAST.1percent.TopEnrich.k15.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+#write.table(CAST_k15_0.001, file = "CAST.0.1percent.TopEnrich.k15.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+CAST_k15_kmers <- CAST_k15_kmers[,c(2,11,12,13)]
+
+B6_k15_kmers <- read.csv(file = "B6.ChIP.inner.k15.kmerscore.txt", header = TRUE)
+B6_k15_kmers$ChIPoverInputMean <- rowMeans(B6_k15_kmers[,9:10])
+B6_k15_kmers <- B6_k15_kmers[order(-B6_k15_kmers$ChIPoverInputMean),]
+B6_k15_kmers$ChIPoverInputSD <- rowSds(as.matrix(B6_k15_kmers[,9:10]))
+total<- nrow(B6_k15_kmers)
+#Top percentage wise
+B6_k15_0.01 <- B6_k15_kmers[1:(total/100),]
+B6_k15_0.001 <- B6_k15_kmers[1:(total/1000),]
+
+write.table(B6_k15_0.01$kmer, file = "B6.1percent.TopEnrich.k15mers.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+write.table(B6_k15_0.001$kmer, file = "B6.0.1percent.TopEnrich.k15mers.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+write.table(B6_k15_0.01, file = "B6.1percent.TopEnrich.k15.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+write.table(B6_k15_0.001, file = "B6.0.1percent.TopEnrich.k15.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+B6_k15_kmers <- B6_k15_kmers[,c(2,9,10)]
+
+PCA_k15_merge <- merge(B6_k15_kmers,CAST_k15_kmers, by = 'kmer', all = TRUE)
+
+rm(CAST_k15_kmers)
+rm(B6_k15_kmers)
+
+PWK_k15_kmers <- read.csv(file = "PWK.ChIP.inner.k15.kmerscore.txt", header = TRUE)
+PWK_k15_kmers$ChIPoverInputMean <- rowMeans(PWK_k15_kmers[,11:13])
+PWK_k15_kmers <- PWK_k15_kmers[order(-PWK_k15_kmers$ChIPoverInputMean),]
+PWK_k15_kmers$ChIPoverInputSD <- rowSds(as.matrix(PWK_k15_kmers[,11:13]))
+total<- nrow(PWK_k15_kmers)
+#Top percentage wise
+PWK_k15_0.01 <- PWK_k15_kmers[1:(total/100),]
+PWK_k15_0.001 <- PWK_k15_kmers[1:(total/1000),]
+
+write.table(PWK_k15_0.01$kmer, file = "PWK.1percent.TopEnrich.k15mers.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+write.table(PWK_k15_0.001$kmer, file = "PWK.0.1percent.TopEnrich.k15mers.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+write.table(PWK_k15_0.01, file = "PWK.1percent.TopEnrich.k15.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+write.table(PWK_k15_0.001, file = "PWK.0.1percent.TopEnrich.k15.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+PWK_k15_kmers <- PWK_k15_kmers[,c(2,11,12,13)]
+
+PCA_k15_merge <- merge(PCA_k15_merge,PWK_k15_kmers, by = 'kmer', all = TRUE)
+rm(PWK_k15_kmers)
+
+LEWES_k15_kmers <- read.csv(file = "LEWES.ChIP.inner.k15.kmerscore.txt", header = TRUE)
+LEWES_k15_kmers$ChIPoverInputMean <- rowMeans(LEWES_k15_kmers[,11:13])
+LEWES_k15_kmers <- LEWES_k15_kmers[order(-LEWES_k15_kmers$ChIPoverInputMean),]
+LEWES_k15_kmers$ChIPoverInputSD <- rowSds(as.matrix(LEWES_k15_kmers[,11:13]))
+total<- nrow(LEWES_k15_kmers)
+#Top percentage wise
+LEWES_k15_0.01 <- LEWES_k15_kmers[1:(total/100),]
+LEWES_k15_0.001 <- LEWES_k15_kmers[1:(total/1000),]
+
+write.table(LEWES_k15_0.01$kmer, file = "LEWES.1percent.TopEnrich.k15mers.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+write.table(LEWES_k15_0.001$kmer, file = "LEWES.0.1percent.TopEnrich.k15mers.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+write.table(LEWES_k15_0.01, file = "LEWES.1percent.TopEnrich.k15.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+write.table(LEWES_k15_0.001, file = "LEWES.0.1percent.TopEnrich.k15.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+
+LEWES_k15_kmers <- LEWES_k15_kmers[,c(2,11,12,13)]
+PCA_k15_merge <- merge(PCA_k15_merge,LEWES_k15_kmers, by = 'kmer', all = TRUE)
+rm(LEWES_k15_kmers)
+
+write.table(PCA_k15_merge, 'PCA.ChIP.inner.k15.kmerscore.txt', row.names = FALSE, quote = FALSE, sep = '\t')
+
+```
+
+```{r}
+setwd("/fastscratch/uma/")
+PCA_k15_merge <- read.table(file = 'PCA.ChIP.inner.k15.kmerscore.txt', header = TRUE, sep = '\t')
+```
+
+
+```{r}
+
+rownames(PCA_k15_merge) <- PCA_k15_merge[,1]
+PCA_k15_merge <- PCA_k15_merge[,2:12]
+PCA_k15_merge[is.na(PCA_k15_merge)] <- 0
+tPCA_k15_merge <- t(PCA_k15_merge)
+
+dim(PCA_k15_merge)
+dim(tPCA_k15_merge)
+str(PCA_k15_merge)
+str(tPCA_k15_merge)
+
+```
+
+```{r}
+#rm(PCA_k15_merge)
+PCA_k15_merge_prcomp  <- prcomp(na.omit(tPCA_k15_merge), scale = TRUE)
+rm(tPCA_k15_merge)
+summary(PCA_k15_merge_prcomp)
+
+pcadf <- as.data.frame(PCA_k15_merge_prcomp$x)
+pcadf$SAMPLE <- rownames(pcadf)
+pcadf$STRAIN <- str_split_fixed(pcadf$SAMPLE, "_", 4)
+```
+
+
+PC1 and PC2
+```{r}
+ggplot(pcadf, aes(x = PC1, y = PC2)) +
+  geom_point(aes(color = c("grey","grey","green","green","green","purple","purple","purple","red","red","red"))) +
+  theme_classic() +
+  theme(legend.position="none") +
+  geom_text_repel(aes(PC1, PC2, label= SAMPLE)) 
+```
+
+PC2 and PC3
+```{r}
+ggplot(pcadf, aes(x = PC2, y = PC3)) +
+  geom_point(aes(color = c("grey","grey","green","green","green","purple","purple","purple","red","red","red"))) +
+  theme_classic() +
+  theme(legend.position="none") +
+  geom_text_repel(aes(PC2, PC3, label= SAMPLE)) 
+```
+
+```{r}
+PCA_k15_merge_prcomp$sdev^2 / sum(PCA_k15_merge_prcomp$sdev^2)
+
+```
+
+Read in top 0.1% enriched k-mers and look at overlap
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions")
+B6top <- read.table(file = "B6.0.1percent.TopEnrich.k15mers.txt")
+CASTtop <- read.table(file = "CAST.0.1percent.TopEnrich.k15mers.txt")
+LEWEStop <- read.table(file = "LEWES.0.1percent.TopEnrich.k15mers.txt")
+PWKtop <- read.table(file = "PWK.0.1percent.TopEnrich.k15mers.txt")
+
+```
+
+```{r pressure, echo=FALSE}
+v.table<-venn( list(C57BL6=B6top,CAST=CASTtop,LEWES=LEWEStop,PWK=PWKtop ))
+```
+
+Unique to each strain
+```{r}
+#B6 25898/117310
+#CAST 36137/135399
+#LEWES 29427/128323
+#PWK 31369/131680
+```
+
+
+```{r}
+library(UpSetR)
+
+B6list <- B6top[,1]
+CASTlist <- CASTtop[,1]
+LEWESlist <- LEWEStop[,1]
+PWKlist <- PWKtop[,1]
+
+listInput <- list(C57BL6=B6list,CAST=CASTlist,LEWES=LEWESlist,PWK=PWKlist)
+upset(fromList(listInput), nsets = 4, order.by = "freq")
+
+```
+
+
+
+
+k23
+```{r cars}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP")
+CAST_k23_kmers <- read.csv(file = "CAST.ChIP.inner.k23.kmerscore.txt", header = TRUE)
+B6_k23_kmers <- read.csv(file = "B6.ChIP.inner.k23.kmerscore.txt", header = TRUE)
+PWK_k23_kmers <- read.csv(file = "PWK.ChIP.inner.k23.kmerscore.txt", header = TRUE)
+LEWES_k23_kmers <- read.csv(file = "LEWES.ChIP.inner.k23.kmerscore.txt", header = TRUE)
+```
+
+k7
+```{r cars}
+setwd("/fastscratch/uma/")
+CAST_k7_kmers <- read.csv(file = "CAST.ChIP.inner.k7.kmerscore.txt", header = TRUE)
+B6_k7_kmers <- read.csv(file = "B6.ChIP.inner.k7.kmerscore.txt", header = TRUE)
+PWK_k7_kmers <- read.csv(file = "PWK.ChIP.inner.k7.kmerscore.txt", header = TRUE)
+LEWES_k7_kmers <- read.csv(file = "LEWES.ChIP.inner.k7.kmerscore.txt", header = TRUE)
+```
+
+```{r}
+
+B6_k7_kmers <- B6_k7_kmers[,c(2,9,10)]
+CAST_k7_kmers <- CAST_k7_kmers[,c(2,11,12,13)]
+LEWES_k7_kmers <- LEWES_k7_kmers[,c(2,11,12,13)]
+PWK_k7_kmers <- PWK_k7_kmers[,c(2,11,12,13)]
+
+PCA_k7_merge <- merge(B6_k7_kmers,CAST_k7_kmers, by = 'kmer', all = TRUE)
+PCA_k7_merge <- merge(PCA_k7_merge,LEWES_k7_kmers, by = 'kmer', all = TRUE)
+PCA_k7_merge <- merge(PCA_k7_merge,PWK_k7_kmers, by = 'kmer', all = TRUE)
+
+```
+
+
+```{r}
+rownames(PCA_k7_merge) <- PCA_k7_merge[,1]
+PCA_k7_merge <- PCA_k7_merge[,2:12]
+PCA_k7_merge[is.na(PCA_k7_merge)] <- 0
+tPCA_k7_merge <- t(PCA_k7_merge)
+
+dim(PCA_k7_merge)
+dim(tPCA_k7_merge)
+str(PCA_k7_merge)
+str(tPCA_k7_merge)
+
+PCA_k7_merge_prcomp  <- prcomp(na.omit(tPCA_k7_merge), scale = TRUE)
+
+summary(PCA_k7_merge_prcomp)
+
+pcadf <- as.data.frame(PCA_k7_merge_prcomp$x)
+pcadf$SAMPLE <- rownames(pcadf)
+pcadf$STRAIN <- str_split_fixed(pcadf$SAMPLE, "_", 4)
+
+```
+
+
+```{r}
+ggplot(pcadf, aes(x = PC1,y = PC2, fill = SAMPLE)) +
+  geom_point(color = c("grey","grey","green","green","green","purple","purple","purple","red","red","red")) +
+  theme_classic() +
+  theme(legend.position="none") +
+  geom_text_repel(aes(PC1, PC2, label= SAMPLE)) 
+
+
+
+
+```
+
+
+```{r}
+##PC2 and PC3
+ggplot(pcadf, aes(x = PC2, y = PC3, fill = SAMPLE)) +
+  geom_point(color = c("grey","grey","green","green","green","purple","purple","purple","red","red","red")) +
+  theme_classic() +
+  theme(legend.position="none") +
+  geom_text_repel(aes(PC1, PC2, label= SAMPLE)) 
+```
+```{r}
+PCA_k7_merge_prcomp$sdev^2 / sum(PCA_k7_merge_prcomp$sdev^2)
+
+```
+
+
+##Read scoring
+1. readcomposition.sh
+```{bash}
+#!/bin/sh
+
+#The following code is to process fasstq reads (processed with fastp and clumpify to remove duplicates)
+#And score reads for enriched kmers in CENP-A ChIP over input
+#############Change file path################
+cd /projects/dumont-lab/uma/CENPA_ChIP/clumpify/fastq/
+#############################################
+#generate and submit read composition script
+
+for fastq in *_CENPA.fastq; do
+        [ -f "$fastq" ] || break
+        echo "script has found $fastq"
+        ./readcomposition.script.generation.sh "$fastq" k15 B6 #Change k and strain
+        ./python.readcomposition.submitscript.generation.sh "$fastq" k15 B6 #Change k and strain
+        sbatch readcomposition."$fastq".k15.B6.sh #Change k and strain
+done
+```
+
+2. readcomposition.script.generation.sh
+```{bash}
+cat> readscore.$1.$2.$3.py << EOF
+#!/urs/bin/env python
+
+###Change input and output path##
+pathinput='/projects/dumont-lab/uma/CENPA_ChIP/clumpify/fastq/$1'
+#Change kmer list based on strain and percent cutoff
+pathinputkmers='/fastscratch/uma/$3.0.1percent.TopEnrich.$2mers.txt'
+#Change output file to reflect strain and percent cutoff
+pathoutput='/fastscratch/uma/readscore/$1.$3.0.1percent.$2mers.readscore.txt'
+
+#This code reads in a fastq file and kmer list and scores reads depending on kmers
+#presence in fastq reads
+
+###read in fastq file
+fastq=open(pathinput,'r').readlines()
+kmers=open(pathinputkmers,'r').readlines()
+
+readscore = {}
+chars='ATGCNatgcn'
+i=0
+for line in fastq:
+    line=line.rstrip()
+    i+=1
+    if line[0] in chars and i%2 == 0 and i%4 !=0: ##some have > sign so switch chars to > AND i check to make sure phred score line is not read.
+        for kmer in kmers:
+            kmer=kmer.rstrip()
+            if kmer in line:
+                if line in readscore:
+                    readscore[line] = readscore[line] + 1
+                elif line not in readscore:
+                    readscore[line]=1
+print('read score from fastq file done')
+
+fileoutput=open(pathoutput,'w')
+for read,score in readscore.items():
+    fileoutput.write(read)
+    fileoutput.write('\t')
+    fileoutput.write(str(score))
+    fileoutput.write('\n')
+fileoutput.close()
+print('read tab separated file made')
+
+EOF
+```
+
+step 3: python.readcomposition.submitscript.generation.sh
+```{bash}
+cat> readcomposition.$1.$2.$3.sh << EOF
+#!/bin/sh
+
+#SBATCH -o %j.out # STDOUT
+#SBATCH -e %j.err # STDERR
+#SBATCH --mem 700G
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=72:00:00
+
+##Load modules##
+module load singularity
+
+singularity exec /home/arorau/python/miniconda.sif python /projects/dumont-lab/uma/CENPA_ChIP/clumpify/fastq/readscore.$1.$2.$3.py
+
+echo "job complete"
+
+EOF
+```
+
+##Count the number of times the read occurs in the file
+PERFORM READSCORING of ChIP reads for frequency of occurance
+Scoring reads within each fastq file - how many of each read are there in the sequencing file
+Step 1: readcount.sh
+```{bash}
+#!/bin/sh
+
+#The following code is to process fastq reads (processed with fastp and clumpify to remove duplicates)
+#And score reads for enriched kmers in CENP-A ChIP over input
+#############Change file path################
+cd /projects/dumont-lab/uma/CENPA_ChIP/clumpify/fastq
+#############################################
+#generate and submit read composition script
+
+for fastq in *.fastq; do
+        [ -f "$fastq" ] || break
+        echo "script has found $fastq"
+        ./readcount.all.script.generation.sh "$fastq"
+        ./python.readcount.submitscript.generation.sh "$fastq"
+        sbatch readcount."$fastq".sh
+done
+
+```
+
+Step 2: readcount.all.script.generation.sh
+```{bash}
+cat> readcount.all.$1.py << EOF
+#!/urs/bin/env python
+
+###Change input and output path##
+pathinput='/projects/dumont-lab/uma/CENPA_ChIP/clumpify/fastq/$1'
+pathoutput='/projects/dumont-lab/uma/CENPA_ChIP/clumpify/fastq/$1.readscore.txt'
+
+#This code reads in a fastq file and scores the number of times a read occurs in the file
+
+###read in fastq file
+fastq=open(pathinput,'r').readlines()
+
+readscore = {}
+chars='ATGCNatgcn'
+i=0
+for line in fastq:
+    line=line.rstrip()
+    i+=1
+    if line[0] in chars and i%2 == 0 and i%4 !=0: ##some have > sign so switch chars to > AND i check to make sure phred score line is not read.
+        if line in readscore:
+            readscore[line] = readscore[line] + 1
+        elif line not in readscore:
+            readscore[line]=1
+print('read score from fastq file done')
+
+fileoutput=open(pathoutput,'w')
+for read,score in readscore.items():
+    fileoutput.write(read)
+    fileoutput.write('\t')
+    fileoutput.write(str(score))
+    fileoutput.write('\n')
+fileoutput.close()
+print('read tab separated file made')
+
+EOF
+
+```
+
+Step 3: python.readcount.submitscript.generation.sh
+```{bash}
+cat> readcount.$1.sh << EOF
+#!/bin/sh
+
+#SBATCH -o %j.out # STDOUT
+#SBATCH -e %j.err # STDERR
+#SBATCH --mem 700G
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=72:00:00
+
+##Load modules##
+module load singularity
+
+singularity exec /home/arorau/python/miniconda.sif python /projects/dumont-lab/uma/CENPA_ChIP/clumpify/fastq/readcount.all.$1.py
+
+echo "job complete"
+
+EOF
+```
+
+
+Read score for each strains enriched k-mers
+B6_F_092920_CENPA
+B6_M_CENPA
+CAST_F_011921_CENPA
+CAST_M_011921_CENPA
+CAST_M_101620_CENPA
+LEWES_F_011921_CENPA
+LEWES_F_012621_CENPA
+LEWES_M_011921_CENPA
+PWK_F_012621_CENPA
+PWK_F_092920_CENPA
+PWK_M_101620_CENPA
+
+C57BL/6J
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+B6_F_092920_CENPA <- read.delim(file = "clumpify_fastp_B6_F_092920_CENPA.fastq.readscore.txt",header = FALSE)
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+B6.0.1percent <- read.delim(file = "clumpify_fastp_B6_F_092920_CENPA.fastq.B6.0.01percent.k15mers.readscore.txt", header = FALSE)
+B6_F_092920_CENPA <- merge(B6_F_092920_CENPA,B6.0.1percent, by = "V1", all = TRUE)
+
+B6_F_092920_CENPA[is.na(B6_F_092920_CENPA)] <- 0
+
+colnames(B6_F_092920_CENPA) <- c("Read","Count","B6")
+B6_F_092920_CENPA$B6norm <- B6_F_092920_CENPA$B6/B6_F_092920_CENPA$Count 
+
+B6_F_092920_CENPA <- B6_F_092920_CENPA[order(-B6_F_092920_CENPA$B6norm),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+B6_M_CENPA <- read.delim(file = "clumpify_fastp_B6_M_CENPA.fastq.readscore.txt",header = FALSE)
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+B6.0.1percent <- read.delim(file = "clumpify_fastp_B6_M_CENPA.fastq.B6.0.01percent.k15mers.readscore.txt", header = FALSE)
+B6_M_CENPA <- merge(B6_M_CENPA,B6.0.1percent, by = "V1", all = TRUE)
+
+B6_M_CENPA[is.na(B6_M_CENPA)] <- 0
+
+colnames(B6_M_CENPA) <- c("Read","Count","B6")
+B6_M_CENPA$B6norm <- B6_M_CENPA$B6/B6_M_CENPA$Count 
+
+B6_M_CENPA <- B6_M_CENPA[order(-B6_M_CENPA$B6norm),]
+
+
+```
+
+```{r}
+B6 <- merge(B6_M_CENPA,B6_F_092920_CENPA, by = "Read", all = TRUE)
+
+colnames(B6) <- c("Read","Count_B6_M_CENPA","B6score_B6_M_CENPA","B6norm_B6_M_CENPA","Count_B6_F_092920_CENPA","B6score_B6_F_092920_CENPA","B6norm_B6_F_092920_CENPA")
+
+B6$Count_B6_M_CENPA <- B6$Count_B6_M_CENPA/32438312
+B6$Count_B6_F_092920_CENPA <- B6$Count_B6_F_092920_CENPA/36271535
+
+#Calculate average count and average readscore
+B6$AVGcount <- rowMeans(B6[,c(2,5)])
+B6$AVGreadscore <- rowMeans(B6[,c(3,6)])
+
+#sort by AVGreadscore then AVGcount 
+B6ordered <- B6[order(-B6[,9], -B6[,8] ),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(B6ordered, file = "B6_0.01percent_k15_normReadcount_normReadscore.txt", row.names = FALSE)
+
+B6top1000 <- B6ordered[1:1000,]
+write.table(B6top1000, file = "B6_0.01percent_k15_normReadcount_normReadscore_top1000.txt", row.names = FALSE)
+
+
+####CAST
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+CAST_F_011921_CENPA <- read.delim(file = "clumpify_fastp_CAST_F_011921_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+CAST.0.1percent <- read.delim(file = "clumpify_fastp_CAST_F_011921_CENPA.fastq.CAST.0.01percent.k15mers.readscore.txt", header = FALSE)
+CAST_F_011921_CENPA <- merge(CAST_F_011921_CENPA,CAST.0.1percent, by = "V1", all = TRUE)
+
+CAST_F_011921_CENPA[is.na(CAST_F_011921_CENPA)] <- 0
+
+colnames(CAST_F_011921_CENPA) <- c("Read","Count","CAST")
+CAST_F_011921_CENPA$CASTnorm <- CAST_F_011921_CENPA$CAST/CAST_F_011921_CENPA$Count
+
+CAST_F_011921_CENPA <- CAST_F_011921_CENPA[order(-CAST_F_011921_CENPA$CASTnorm),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+CAST_M_011921_CENPA <- read.delim(file = "clumpify_fastp_CAST_M_011921_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+CAST.0.1percent <- read.delim(file = "clumpify_fastp_CAST_M_011921_CENPA.fastq.CAST.0.01percent.k15mers.readscore.txt", header = FALSE)
+CAST_M_011921_CENPA <- merge(CAST_M_011921_CENPA,CAST.0.1percent, by = "V1", all = TRUE)
+
+CAST_M_011921_CENPA[is.na(CAST_M_011921_CENPA)] <- 0
+
+colnames(CAST_M_011921_CENPA) <- c("Read","Count","CAST")
+CAST_M_011921_CENPA$CASTnorm <- CAST_M_011921_CENPA$CAST/CAST_M_011921_CENPA$Count
+
+CAST_M_011921_CENPA <- CAST_M_011921_CENPA[order(-CAST_M_011921_CENPA$CASTnorm),]
+
+###
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+CAST_M_101620_CENPA <- read.delim(file = "clumpify_fastp_CAST_M_101620_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+CAST.0.1percent <- read.delim(file = "clumpify_fastp_CAST_M_101620_CENPA.fastq.CAST.0.01percent.k15mers.readscore.txt", header = FALSE)
+CAST_M_101620_CENPA <- merge(CAST_M_101620_CENPA,CAST.0.1percent, by = "V1", all = TRUE)
+
+CAST_M_101620_CENPA[is.na(CAST_M_101620_CENPA)] <- 0
+
+colnames(CAST_M_101620_CENPA) <- c("Read","Count","CAST")
+CAST_M_101620_CENPA$CASTnorm <- CAST_M_101620_CENPA$CAST/CAST_M_101620_CENPA$Count
+
+CAST_M_101620_CENPA <- CAST_M_101620_CENPA[order(-CAST_M_101620_CENPA$CASTnorm),]
+
+
+########Try all = TRUE
+#All = FALSE makes the assumption that the two samples must have the same sequencing reads.....
+#all = TRUE merge for strain
+CAST <- merge(CAST_M_101620_CENPA,CAST_M_011921_CENPA, by = "Read", all = TRUE)
+CAST <- merge(CAST, CAST_F_011921_CENPA, by = "Read", all = TRUE)
+
+colnames(CAST) <- c("Read","Count_CAST_M_101620_CENPA","CASTscore_CAST_M_101620_CENPA","CASTnorm_CAST_M_101620_CENPA","Count_CAST_M_011921_CENPA","CASTscore_CAST_M_011921_CENPA","CASTnorm_CAST_M_011921_CENPA","Count_CAST_F_011921_CENPA","CASTscore_CAST_F_011921_CENPA","CASTnorm_CAST_F_011921_CENPA")
+
+CAST$Count_CAST_M_101620_CENPA <- CAST$Count_CAST_M_101620_CENPA/33526175
+CAST$Count_CAST_M_011921_CENPA <- CAST$Count_CAST_M_011921_CENPA/31762728
+CAST$Count_CAST_F_011921_CENPA <- CAST$Count_CAST_F_011921_CENPA/35714658
+
+#Calculate average count and average readscore
+CAST$AVGcount <- rowMeans(CAST[,c(2,5,8)])
+CAST$AVGreadscore <- rowMeans(CAST[,c(3,6,9)])
+
+#sort by AVGreadscore then AVGcount 
+CASTordered <- CAST[order(-CAST[,12], -CAST[,11] ),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(CASTordered, file = "CAST_0.01percent_k15_normReadcount_normReadscore.txt", row.names = FALSE)
+
+CASTtop1000 <- CASTordered[1:1000,]
+write.table(CASTtop1000, file = "CAST_0.01percent_k15_normReadcount_normReadscore_top1000.txt", row.names = FALSE)
+```
+
+
+###LEWES
+```{r}
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+LEWES_F_011921_CENPA <- read.delim(file = "clumpify_fastp_LEWES_F_011921_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+LEWES.0.1percent <- read.delim(file = "clumpify_fastp_LEWES_F_011921_CENPA.fastq.LEWES.0.01percent.k15mers.readscore.txt", header = FALSE)
+LEWES_F_011921_CENPA <- merge(LEWES_F_011921_CENPA,LEWES.0.1percent, by = "V1", all = TRUE)
+
+LEWES_F_011921_CENPA[is.na(LEWES_F_011921_CENPA)] <- 0
+
+colnames(LEWES_F_011921_CENPA) <- c("Read","Count","LEWES")
+LEWES_F_011921_CENPA$LEWESnorm <- LEWES_F_011921_CENPA$LEWES/LEWES_F_011921_CENPA$Count
+
+LEWES_F_011921_CENPA <- LEWES_F_011921_CENPA[order(-LEWES_F_011921_CENPA$LEWESnorm),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+LEWES_M_011921_CENPA <- read.delim(file = "clumpify_fastp_LEWES_M_011921_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+LEWES.0.1percent <- read.delim(file = "clumpify_fastp_LEWES_M_011921_CENPA.fastq.LEWES.0.01percent.k15mers.readscore.txt", header = FALSE)
+LEWES_M_011921_CENPA <- merge(LEWES_M_011921_CENPA,LEWES.0.1percent, by = "V1", all = TRUE)
+
+
+LEWES_M_011921_CENPA[is.na(LEWES_M_011921_CENPA)] <- 0
+
+colnames(LEWES_M_011921_CENPA) <- c("Read","Count","LEWES")
+LEWES_M_011921_CENPA$LEWESnorm <- LEWES_M_011921_CENPA$LEWES/LEWES_M_011921_CENPA$Count
+
+LEWES_M_011921_CENPA <- LEWES_M_011921_CENPA[order(-LEWES_M_011921_CENPA$LEWESnorm),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+LEWES_F_012621_CENPA <- read.delim(file = "clumpify_fastp_LEWES_F_012621_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+LEWES.0.1percent <- read.delim(file = "clumpify_fastp_LEWES_F_012621_CENPA.fastq.LEWES.0.01percent.k15mers.readscore.txt", header = FALSE)
+LEWES_F_012621_CENPA <- merge(LEWES_F_012621_CENPA,LEWES.0.1percent, by = "V1", all = TRUE)
+
+LEWES_F_012621_CENPA[is.na(LEWES_F_012621_CENPA)] <- 0
+
+colnames(LEWES_F_012621_CENPA) <- c("Read","Count","LEWES")
+LEWES_F_012621_CENPA$LEWESnorm <- LEWES_F_012621_CENPA$LEWES/LEWES_F_012621_CENPA$Count
+
+LEWES_F_012621_CENPA <- LEWES_F_012621_CENPA[order(-LEWES_F_012621_CENPA$LEWESnorm),]
+
+########Try all = TRUE
+#All = FALSE makes the assumption that the two samples must have the same sequencing reads.....
+#all = TRUE merge for strain
+#merge for strain
+LEWES <- merge(LEWES_F_011921_CENPA,LEWES_M_011921_CENPA, by = "Read", all = TRUE)
+LEWES <- merge(LEWES, LEWES_F_012621_CENPA, by = "Read", all = TRUE)
+
+colnames(LEWES) <- c("Read","Count_LEWES_F_011921_CENPA","LEWESscore_LEWES_F_011921_CENPA","LEWESnorm_LEWES_F_011921_CENPA","Count_LEWES_M_011921_CENPA","LEWESscore_LEWES_M_011921_CENPA","LEWESnorm_LEWES_M_011921_CENPA","Count_LEWES_F_012621_CENPA","LEWESscore_LEWES_F_012621_CENPA","LEWESnorm_LEWES_F_012621_CENPA")
+
+LEWES$Count_LEWES_F_011921_CENPA <- LEWES$Count_LEWES_F_011921_CENPA/35216685
+LEWES$Count_LEWES_M_011921_CENPA <- LEWES$Count_LEWES_M_011921_CENPA/36520933
+LEWES$Count_LEWES_F_012621_CENPA <- LEWES$Count_LEWES_F_012621_CENPA/35368497
+
+LEWES$AVGcount <- rowMeans(LEWES[,c(2,5,8)])
+LEWES$AVGreadscore <- rowMeans(LEWES[,c(3,6,9)])
+
+#sort by AVGreadscore then AVGcount 
+LEWESordered <- LEWES[order(-LEWES[,12], -LEWES[,11] ),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(LEWESordered, file = "LEWES_0.01percent_k15_normReadcount_normReadscore.txt", row.names = FALSE)
+
+LEWEStop1000 <- LEWESordered[1:1000,]
+write.table(LEWEStop1000, file = "LEWES_0.01percent_k15_normReadcount_normReadscore_top1000.txt", row.names = FALSE)
+
+
+### PWK/PhJ
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+PWK_F_012621_CENPA <- read.delim(file = "clumpify_fastp_PWK_F_012621_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+PWK.0.1percent <- read.delim(file = "clumpify_fastp_PWK_F_012621_CENPA.fastq.PWK.0.01percent.k15mers.readscore.txt", header = FALSE)
+PWK_F_012621_CENPA <- merge(PWK_F_012621_CENPA,PWK.0.1percent, by = "V1", all = TRUE)
+
+PWK_F_012621_CENPA[is.na(PWK_F_012621_CENPA)] <- 0
+
+colnames(PWK_F_012621_CENPA) <- c("Read","Count","PWK")
+PWK_F_012621_CENPA$PWKnorm <- PWK_F_012621_CENPA$PWK/PWK_F_012621_CENPA$Count
+
+PWK_F_012621_CENPA <- PWK_F_012621_CENPA[order(-PWK_F_012621_CENPA$PWKnorm),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+PWK_F_092920_CENPA <- read.delim(file = "clumpify_fastp_PWK_F_092920_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+PWK.0.1percent <- read.delim(file = "clumpify_fastp_PWK_F_092920_CENPA.fastq.PWK.0.01percent.k15mers.readscore.txt", header = FALSE)
+PWK_F_092920_CENPA <- merge(PWK_F_092920_CENPA,PWK.0.1percent, by = "V1", all = TRUE)
+
+PWK_F_092920_CENPA[is.na(PWK_F_092920_CENPA)] <- 0
+
+colnames(PWK_F_092920_CENPA) <- c("Read","Count","PWK")
+PWK_F_092920_CENPA$PWKnorm <- PWK_F_092920_CENPA$PWK/PWK_F_092920_CENPA$Count
+
+PWK_F_092920_CENPA <- PWK_F_092920_CENPA[order(-PWK_F_092920_CENPA$PWKnorm),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+PWK_M_101620_CENPA <- read.delim(file = "clumpify_fastp_PWK_M_101620_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+PWK.0.1percent <- read.delim(file = "clumpify_fastp_PWK_M_101620_CENPA.fastq.PWK.0.01percent.k15mers.readscore.txt", header = FALSE)
+PWK_M_101620_CENPA <- merge(PWK_M_101620_CENPA,PWK.0.1percent, by = "V1", all = TRUE)
+
+PWK_M_101620_CENPA[is.na(PWK_M_101620_CENPA)] <- 0
+
+colnames(PWK_M_101620_CENPA) <- c("Read","Count","PWK")
+PWK_M_101620_CENPA$PWKnorm <- PWK_M_101620_CENPA$PWK/PWK_M_101620_CENPA$Count
+
+PWK_M_101620_CENPA <- PWK_M_101620_CENPA[order(-PWK_M_101620_CENPA$PWKnorm),]
+
+########Try all = TRUE
+#All = FALSE makes the assumption that the two samples must have the same sequencing reads.....
+#all = TRUE merge for strain
+#merge for strain
+PWK <- merge(PWK_F_012621_CENPA,PWK_F_092920_CENPA, by = "Read", all = TRUE)
+PWK <- merge(PWK, PWK_M_101620_CENPA, by = "Read", all = TRUE)
+
+colnames(PWK) <- c("Read","Count_PWK_F_012621_CENPA","PWKscore_PWK_F_012621_CENPA","PWKnorm_PWK_F_012621_CENPA","Count_PWK_F_092920_CENPA","PWKscore_PWK_F_092920_CENPA","PWKnorm_PWK_F_092920_CENPA","Count_PWK_M_101620_CENPA","PWKscore_PWK_M_101620_CENPA","PWKnorm_PWK_M_101620_CENPA")
+
+
+PWK$Count_PWK_F_012621_CENPA <- PWK$Count_PWK_F_012621_CENPA/40112208
+PWK$Count_PWK_F_092920_CENPA <- PWK$Count_PWK_F_092920_CENPA/30653552
+PWK$Count_PWK_M_101620_CENPA <- PWK$Count_PWK_M_101620_CENPA/29360096
+
+PWK$AVGcount <- rowMeans(PWK[,c(2,5,8)])
+PWK$AVGreadscore <- rowMeans(PWK[,c(3,6,9)])
+
+#sort by AVGreadscore then AVGcount 
+PWKordered <- PWK[order(-PWK[,12], -PWK[,11] ),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(PWKordered, file = "PWK_0.01percent_k15_normReadcount_normReadscore.txt", row.names = FALSE)
+
+PWKtop1000 <- PWKordered[1:1000,]
+write.table(PWKtop1000, file = "PWK_0.01percent_k15_normReadcount_normReadscore_top1000.txt", row.names = FALSE)
+```
+
+Read in top 1000 reads and rename and write out as FASTA file to use in CLUSTAL
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+B6_reads <- read.table(file = "B6_0.01percent_k15_normReadcount_normReadscore_top1000.txt", header = TRUE)
+CAST_reads <- read.table(file = "CAST_0.01percent_k15_normReadcount_normReadscore_top1000.txt", header = TRUE)
+LEWES_reads <- read.table(file = "LEWES_0.01percent_k15_normReadcount_normReadscore_top1000.txt", header = TRUE)
+PWK_reads <- read.table(file = "PWK_0.01percent_k15_normReadcount_normReadscore_top1000.txt", header = TRUE)
+
+
+```
+
+```{r}
+B6_reads$STRAIN <- c("B6")
+B6_reads$number <- 1:1000
+B6_reads$readname <- paste0(">",B6_reads$STRAIN,B6_reads$number,"\n",B6_reads$Read)
+#B6_reads_subset <- B6_reads[,12]
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(B6_reads[,12], file = "B6_0.01percent_k15_normReadcount_normReadscore_top1000_reads.fa", row.names = FALSE, col.names = FALSE, quote = FALSE)
+```
+
+```{r}
+CAST_reads$STRAIN <- c("CAST")
+CAST_reads$number <- 1:1000
+CAST_reads$readname <- paste0(">",CAST_reads$STRAIN,CAST_reads$number,"\n",CAST_reads$Read)
+#B6_reads_subset <- B6_reads[,15]
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(CAST_reads[,15], file = "CAST_0.01percent_k15_normReadcount_normReadscore_top1000_reads.fa", row.names = FALSE, col.names = FALSE, quote = FALSE)
+```
+
+```{r}
+LEWES_reads$STRAIN <- c("LEWES")
+LEWES_reads$number <- 1:1000
+LEWES_reads$readname <- paste0(">",LEWES_reads$STRAIN,LEWES_reads$number,"\n",LEWES_reads$Read)
+#LEWES_reads_subset <- LEWES_reads[,15]
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(LEWES_reads[,15], file = "LEWES_0.01percent_k15_normReadcount_normReadscore_top1000_reads.fa", row.names = FALSE, col.names = FALSE, quote = FALSE)
+```
+
+```{r}
+PWK_reads$STRAIN <- c("PWK")
+PWK_reads$number <- 1:1000
+PWK_reads$readname <- paste0(">",PWK_reads$STRAIN,PWK_reads$number,"\n",PWK_reads$Read)
+#PWK_reads_subset <- PWK_reads[,15]
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(PWK_reads[,15], file = "PWK_0.01percent_k15_normReadcount_normReadscore_top1000_reads.fa", row.names = FALSE, col.names = FALSE, quote = FALSE)
+```
+
+ALL = FALSE!!
+Read score for each strains enriched k-mers
+B6_F_092920_CENPA
+B6_M_CENPA
+CAST_F_011921_CENPA
+CAST_M_011921_CENPA
+CAST_M_101620_CENPA
+LEWES_F_011921_CENPA
+LEWES_F_012621_CENPA
+LEWES_M_011921_CENPA
+PWK_F_012621_CENPA
+PWK_F_092920_CENPA
+PWK_M_101620_CENPA
+
+C57BL/6J
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+B6_F_092920_CENPA <- read.delim(file = "clumpify_fastp_B6_F_092920_CENPA.fastq.readscore.txt",header = FALSE)
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+B6.0.1percent <- read.delim(file = "clumpify_fastp_B6_F_092920_CENPA.fastq.B6.0.01percent.k15mers.readscore.txt", header = FALSE)
+B6_F_092920_CENPA <- merge(B6_F_092920_CENPA,B6.0.1percent, by = "V1", all = FALSE)
+
+B6_F_092920_CENPA[is.na(B6_F_092920_CENPA)] <- 0
+
+colnames(B6_F_092920_CENPA) <- c("Read","Count","B6")
+B6_F_092920_CENPA$B6norm <- B6_F_092920_CENPA$B6/B6_F_092920_CENPA$Count 
+
+B6_F_092920_CENPA <- B6_F_092920_CENPA[order(-B6_F_092920_CENPA$B6norm),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+B6_M_CENPA <- read.delim(file = "clumpify_fastp_B6_M_CENPA.fastq.readscore.txt",header = FALSE)
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+B6.0.1percent <- read.delim(file = "clumpify_fastp_B6_M_CENPA.fastq.B6.0.01percent.k15mers.readscore.txt", header = FALSE)
+B6_M_CENPA <- merge(B6_M_CENPA,B6.0.1percent, by = "V1", all = FALSE)
+
+B6_M_CENPA[is.na(B6_M_CENPA)] <- 0
+
+colnames(B6_M_CENPA) <- c("Read","Count","B6")
+B6_M_CENPA$B6norm <- B6_M_CENPA$B6/B6_M_CENPA$Count 
+
+B6_M_CENPA <- B6_M_CENPA[order(-B6_M_CENPA$B6norm),]
+
+
+
+B6 <- merge(B6_M_CENPA,B6_F_092920_CENPA, by = "Read", all = FALSE)
+
+colnames(B6) <- c("Read","Count_B6_M_CENPA","B6score_B6_M_CENPA","B6norm_B6_M_CENPA","Count_B6_F_092920_CENPA","B6score_B6_F_092920_CENPA","B6norm_B6_F_092920_CENPA")
+
+B6$Count_B6_M_CENPA <- B6$Count_B6_M_CENPA/32438312
+B6$Count_B6_F_092920_CENPA <- B6$Count_B6_F_092920_CENPA/36271535
+
+#Calculate average count and average readscore
+B6$AVGcount <- rowMeans(B6[,c(2,5)])
+B6$AVGreadscore <- rowMeans(B6[,c(3,6)])
+
+#sort by AVGreadscore then AVGcount 
+B6ordered <- B6[order(-B6[,9], -B6[,8] ),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(B6ordered, file = "B6_0.01percent_k15_allFALSE_normReadcount_normReadscore.txt", row.names = FALSE)
+
+B6top1000 <- B6ordered[1:1000,]
+write.table(B6top1000, file = "B6_0.01percent_k15_allFALSE_normReadcount_normReadscore_top1000.txt", row.names = FALSE)
+
+
+####CAST
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+CAST_F_011921_CENPA <- read.delim(file = "clumpify_fastp_CAST_F_011921_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+CAST.0.1percent <- read.delim(file = "clumpify_fastp_CAST_F_011921_CENPA.fastq.CAST.0.01percent.k15mers.readscore.txt", header = FALSE)
+CAST_F_011921_CENPA <- merge(CAST_F_011921_CENPA,CAST.0.1percent, by = "V1", all = FALSE)
+
+CAST_F_011921_CENPA[is.na(CAST_F_011921_CENPA)] <- 0
+
+colnames(CAST_F_011921_CENPA) <- c("Read","Count","CAST")
+CAST_F_011921_CENPA$CASTnorm <- CAST_F_011921_CENPA$CAST/CAST_F_011921_CENPA$Count
+
+CAST_F_011921_CENPA <- CAST_F_011921_CENPA[order(-CAST_F_011921_CENPA$CASTnorm),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+CAST_M_011921_CENPA <- read.delim(file = "clumpify_fastp_CAST_M_011921_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+CAST.0.1percent <- read.delim(file = "clumpify_fastp_CAST_M_011921_CENPA.fastq.CAST.0.01percent.k15mers.readscore.txt", header = FALSE)
+CAST_M_011921_CENPA <- merge(CAST_M_011921_CENPA,CAST.0.1percent, by = "V1", all = FALSE)
+
+CAST_M_011921_CENPA[is.na(CAST_M_011921_CENPA)] <- 0
+
+colnames(CAST_M_011921_CENPA) <- c("Read","Count","CAST")
+CAST_M_011921_CENPA$CASTnorm <- CAST_M_011921_CENPA$CAST/CAST_M_011921_CENPA$Count
+
+CAST_M_011921_CENPA <- CAST_M_011921_CENPA[order(-CAST_M_011921_CENPA$CASTnorm),]
+
+###
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+CAST_M_101620_CENPA <- read.delim(file = "clumpify_fastp_CAST_M_101620_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+CAST.0.1percent <- read.delim(file = "clumpify_fastp_CAST_M_101620_CENPA.fastq.CAST.0.01percent.k15mers.readscore.txt", header = FALSE)
+CAST_M_101620_CENPA <- merge(CAST_M_101620_CENPA,CAST.0.1percent, by = "V1", all = FALSE)
+
+CAST_M_101620_CENPA[is.na(CAST_M_101620_CENPA)] <- 0
+
+colnames(CAST_M_101620_CENPA) <- c("Read","Count","CAST")
+CAST_M_101620_CENPA$CASTnorm <- CAST_M_101620_CENPA$CAST/CAST_M_101620_CENPA$Count
+
+CAST_M_101620_CENPA <- CAST_M_101620_CENPA[order(-CAST_M_101620_CENPA$CASTnorm),]
+
+
+########Try all = TRUE
+#All = FALSE makes the assumption that the two samples must have the same sequencing reads.....
+#all = TRUE merge for strain
+CAST <- merge(CAST_M_101620_CENPA,CAST_M_011921_CENPA, by = "Read", all = FALSE)
+CAST <- merge(CAST, CAST_F_011921_CENPA, by = "Read", all = FALSE)
+
+colnames(CAST) <- c("Read","Count_CAST_M_101620_CENPA","CASTscore_CAST_M_101620_CENPA","CASTnorm_CAST_M_101620_CENPA","Count_CAST_M_011921_CENPA","CASTscore_CAST_M_011921_CENPA","CASTnorm_CAST_M_011921_CENPA","Count_CAST_F_011921_CENPA","CASTscore_CAST_F_011921_CENPA","CASTnorm_CAST_F_011921_CENPA")
+
+CAST$Count_CAST_M_101620_CENPA <- CAST$Count_CAST_M_101620_CENPA/33526175
+CAST$Count_CAST_M_011921_CENPA <- CAST$Count_CAST_M_011921_CENPA/31762728
+CAST$Count_CAST_F_011921_CENPA <- CAST$Count_CAST_F_011921_CENPA/35714658
+
+#Calculate average count and average readscore
+CAST$AVGcount <- rowMeans(CAST[,c(2,5,8)])
+CAST$AVGreadscore <- rowMeans(CAST[,c(3,6,9)])
+
+#sort by AVGreadscore then AVGcount 
+CASTordered <- CAST[order(-CAST[,12], -CAST[,11] ),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(CASTordered, file = "CAST_0.01percent_k15_allFALSE_normReadcount_normReadscore.txt", row.names = FALSE)
+
+CASTtop1000 <- CASTordered[1:1000,]
+write.table(CASTtop1000, file = "CAST_0.01percent_k15_allFALSE_normReadcount_normReadscore_top1000.txt", row.names = FALSE)
+```
+
+
+###LEWES
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+LEWES_F_011921_CENPA <- read.delim(file = "clumpify_fastp_LEWES_F_011921_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+LEWES.0.1percent <- read.delim(file = "clumpify_fastp_LEWES_F_011921_CENPA.fastq.LEWES.0.01percent.k15mers.readscore.txt", header = FALSE)
+LEWES_F_011921_CENPA <- merge(LEWES_F_011921_CENPA,LEWES.0.1percent, by = "V1", all = FALSE)
+
+LEWES_F_011921_CENPA[is.na(LEWES_F_011921_CENPA)] <- 0
+
+colnames(LEWES_F_011921_CENPA) <- c("Read","Count","LEWES")
+LEWES_F_011921_CENPA$LEWESnorm <- LEWES_F_011921_CENPA$LEWES/LEWES_F_011921_CENPA$Count
+
+LEWES_F_011921_CENPA <- LEWES_F_011921_CENPA[order(-LEWES_F_011921_CENPA$LEWESnorm),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+LEWES_M_011921_CENPA <- read.delim(file = "clumpify_fastp_LEWES_M_011921_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+LEWES.0.1percent <- read.delim(file = "clumpify_fastp_LEWES_M_011921_CENPA.fastq.LEWES.0.01percent.k15mers.readscore.txt", header = FALSE)
+LEWES_M_011921_CENPA <- merge(LEWES_M_011921_CENPA,LEWES.0.1percent, by = "V1", all = FALSE)
+
+
+LEWES_M_011921_CENPA[is.na(LEWES_M_011921_CENPA)] <- 0
+
+colnames(LEWES_M_011921_CENPA) <- c("Read","Count","LEWES")
+LEWES_M_011921_CENPA$LEWESnorm <- LEWES_M_011921_CENPA$LEWES/LEWES_M_011921_CENPA$Count
+
+LEWES_M_011921_CENPA <- LEWES_M_011921_CENPA[order(-LEWES_M_011921_CENPA$LEWESnorm),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+LEWES_F_012621_CENPA <- read.delim(file = "clumpify_fastp_LEWES_F_012621_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+LEWES.0.1percent <- read.delim(file = "clumpify_fastp_LEWES_F_012621_CENPA.fastq.LEWES.0.01percent.k15mers.readscore.txt", header = FALSE)
+LEWES_F_012621_CENPA <- merge(LEWES_F_012621_CENPA,LEWES.0.1percent, by = "V1", all = FALSE)
+
+LEWES_F_012621_CENPA[is.na(LEWES_F_012621_CENPA)] <- 0
+
+colnames(LEWES_F_012621_CENPA) <- c("Read","Count","LEWES")
+LEWES_F_012621_CENPA$LEWESnorm <- LEWES_F_012621_CENPA$LEWES/LEWES_F_012621_CENPA$Count
+
+LEWES_F_012621_CENPA <- LEWES_F_012621_CENPA[order(-LEWES_F_012621_CENPA$LEWESnorm),]
+
+########Try all = TRUE
+#All = FALSE makes the assumption that the two samples must have the same sequencing reads.....
+#all = TRUE merge for strain
+#merge for strain
+LEWES <- merge(LEWES_F_011921_CENPA,LEWES_M_011921_CENPA, by = "Read", all = FALSE)
+LEWES <- merge(LEWES, LEWES_F_012621_CENPA, by = "Read", all = FALSE)
+
+colnames(LEWES) <- c("Read","Count_LEWES_F_011921_CENPA","LEWESscore_LEWES_F_011921_CENPA","LEWESnorm_LEWES_F_011921_CENPA","Count_LEWES_M_011921_CENPA","LEWESscore_LEWES_M_011921_CENPA","LEWESnorm_LEWES_M_011921_CENPA","Count_LEWES_F_012621_CENPA","LEWESscore_LEWES_F_012621_CENPA","LEWESnorm_LEWES_F_012621_CENPA")
+
+LEWES$Count_LEWES_F_011921_CENPA <- LEWES$Count_LEWES_F_011921_CENPA/35216685
+LEWES$Count_LEWES_M_011921_CENPA <- LEWES$Count_LEWES_M_011921_CENPA/36520933
+LEWES$Count_LEWES_F_012621_CENPA <- LEWES$Count_LEWES_F_012621_CENPA/35368497
+
+LEWES$AVGcount <- rowMeans(LEWES[,c(2,5,8)])
+LEWES$AVGreadscore <- rowMeans(LEWES[,c(3,6,9)])
+
+#sort by AVGreadscore then AVGcount 
+LEWESordered <- LEWES[order(-LEWES[,12], -LEWES[,11] ),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(LEWESordered, file = "LEWES_0.01percent_k15_allFALSE_normReadcount_normReadscore.txt", row.names = FALSE)
+
+LEWEStop1000 <- LEWESordered[1:1000,]
+write.table(LEWEStop1000, file = "LEWES_0.01percent_k15_allFALSE_normReadcount_normReadscore_top1000.txt", row.names = FALSE)
+
+
+### PWK/PhJ
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+PWK_F_012621_CENPA <- read.delim(file = "clumpify_fastp_PWK_F_012621_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+PWK.0.1percent <- read.delim(file = "clumpify_fastp_PWK_F_012621_CENPA.fastq.PWK.0.01percent.k15mers.readscore.txt", header = FALSE)
+PWK_F_012621_CENPA <- merge(PWK_F_012621_CENPA,PWK.0.1percent, by = "V1", all = FALSE)
+
+PWK_F_012621_CENPA[is.na(PWK_F_012621_CENPA)] <- 0
+
+colnames(PWK_F_012621_CENPA) <- c("Read","Count","PWK")
+PWK_F_012621_CENPA$PWKnorm <- PWK_F_012621_CENPA$PWK/PWK_F_012621_CENPA$Count
+
+PWK_F_012621_CENPA <- PWK_F_012621_CENPA[order(-PWK_F_012621_CENPA$PWKnorm),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+PWK_F_092920_CENPA <- read.delim(file = "clumpify_fastp_PWK_F_092920_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+PWK.0.1percent <- read.delim(file = "clumpify_fastp_PWK_F_092920_CENPA.fastq.PWK.0.01percent.k15mers.readscore.txt", header = FALSE)
+PWK_F_092920_CENPA <- merge(PWK_F_092920_CENPA,PWK.0.1percent, by = "V1", all = FALSE)
+
+PWK_F_092920_CENPA[is.na(PWK_F_092920_CENPA)] <- 0
+
+colnames(PWK_F_092920_CENPA) <- c("Read","Count","PWK")
+PWK_F_092920_CENPA$PWKnorm <- PWK_F_092920_CENPA$PWK/PWK_F_092920_CENPA$Count
+
+PWK_F_092920_CENPA <- PWK_F_092920_CENPA[order(-PWK_F_092920_CENPA$PWKnorm),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/readscore/")
+PWK_M_101620_CENPA <- read.delim(file = "clumpify_fastp_PWK_M_101620_CENPA.fastq.readscore.txt",header = FALSE)
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+PWK.0.1percent <- read.delim(file = "clumpify_fastp_PWK_M_101620_CENPA.fastq.PWK.0.01percent.k15mers.readscore.txt", header = FALSE)
+PWK_M_101620_CENPA <- merge(PWK_M_101620_CENPA,PWK.0.1percent, by = "V1", all = FALSE)
+
+PWK_M_101620_CENPA[is.na(PWK_M_101620_CENPA)] <- 0
+
+colnames(PWK_M_101620_CENPA) <- c("Read","Count","PWK")
+PWK_M_101620_CENPA$PWKnorm <- PWK_M_101620_CENPA$PWK/PWK_M_101620_CENPA$Count
+
+PWK_M_101620_CENPA <- PWK_M_101620_CENPA[order(-PWK_M_101620_CENPA$PWKnorm),]
+
+########Try all = TRUE
+#All = FALSE makes the assumption that the two samples must have the same sequencing reads.....
+#all = TRUE merge for strain
+#merge for strain
+PWK <- merge(PWK_F_012621_CENPA,PWK_F_092920_CENPA, by = "Read", all = FALSE)
+PWK <- merge(PWK, PWK_M_101620_CENPA, by = "Read", all = FALSE)
+
+colnames(PWK) <- c("Read","Count_PWK_F_012621_CENPA","PWKscore_PWK_F_012621_CENPA","PWKnorm_PWK_F_012621_CENPA","Count_PWK_F_092920_CENPA","PWKscore_PWK_F_092920_CENPA","PWKnorm_PWK_F_092920_CENPA","Count_PWK_M_101620_CENPA","PWKscore_PWK_M_101620_CENPA","PWKnorm_PWK_M_101620_CENPA")
+
+
+PWK$Count_PWK_F_012621_CENPA <- PWK$Count_PWK_F_012621_CENPA/40112208
+PWK$Count_PWK_F_092920_CENPA <- PWK$Count_PWK_F_092920_CENPA/30653552
+PWK$Count_PWK_M_101620_CENPA <- PWK$Count_PWK_M_101620_CENPA/29360096
+
+PWK$AVGcount <- rowMeans(PWK[,c(2,5,8)])
+PWK$AVGreadscore <- rowMeans(PWK[,c(3,6,9)])
+
+#sort by AVGreadscore then AVGcount 
+PWKordered <- PWK[order(-PWK[,12], -PWK[,11] ),]
+
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(PWKordered, file = "PWK_0.01percent_k15_allFALSE_normReadcount_normReadscore.txt", row.names = FALSE)
+
+PWKtop1000 <- PWKordered[1:1000,]
+write.table(PWKtop1000, file = "PWK_0.01percent_k15_allFALSE_normReadcount_normReadscore_top1000.txt", row.names = FALSE)
+```
+
+Read in top 1000 reads and rename and write out as FASTA file to use in CLUSTAL
+```{r}
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+B6_reads <- read.table(file = "B6_0.01percent_k15_allFALSE_normReadcount_normReadscore_top1000.txt", header = TRUE)
+CAST_reads <- read.table(file = "CAST_0.01percent_k15_allFALSE_normReadcount_normReadscore_top1000.txt", header = TRUE)
+LEWES_reads <- read.table(file = "LEWES_0.01percent_k15_allFALSE_normReadcount_normReadscore_top1000.txt", header = TRUE)
+PWK_reads <- read.table(file = "PWK_0.01percent_k15_allFALSE_normReadcount_normReadscore_top1000.txt", header = TRUE)
+
+
+```
+
+```{r}
+B6_reads$STRAIN <- c("B6")
+B6_reads$number <- 1:1000
+B6_reads$readname <- paste0(">",B6_reads$STRAIN,B6_reads$number,"\n",B6_reads$Read)
+#B6_reads_subset <- B6_reads[,12]
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(B6_reads[,12], file = "B6_0.01percent_k15_allFALSE_normReadcount_normReadscore_top1000_reads.fa", row.names = FALSE, col.names = FALSE, quote = FALSE)
+```
+
+```{r}
+CAST_reads$STRAIN <- c("CAST")
+CAST_reads$number <- 1:1000
+CAST_reads$readname <- paste0(">",CAST_reads$STRAIN,CAST_reads$number,"\n",CAST_reads$Read)
+#B6_reads_subset <- B6_reads[,15]
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(CAST_reads[,15], file = "CAST_0.01percent_k15_allFALSE_normReadcount_normReadscore_top1000_reads.fa", row.names = FALSE, col.names = FALSE, quote = FALSE)
+```
+
+```{r}
+LEWES_reads$STRAIN <- c("LEWES")
+LEWES_reads$number <- 1:1000
+LEWES_reads$readname <- paste0(">",LEWES_reads$STRAIN,LEWES_reads$number,"\n",LEWES_reads$Read)
+#LEWES_reads_subset <- LEWES_reads[,15]
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(LEWES_reads[,15], file = "LEWES_0.01percent_k15_allFALSE_normReadcount_normReadscore_top1000_reads.fa", row.names = FALSE, col.names = FALSE, quote = FALSE)
+```
+
+```{r}
+PWK_reads$STRAIN <- c("PWK")
+PWK_reads$number <- 1:1000
+PWK_reads$readname <- paste0(">",PWK_reads$STRAIN,PWK_reads$number,"\n",PWK_reads$Read)
+#PWK_reads_subset <- PWK_reads[,15]
+setwd("/projects/dumont-lab/uma/CENPA_ChIP/revisions/readscore")
+write.table(PWK_reads[,15], file = "PWK_0.01percent_k15_allFALSE_normReadcount_normReadscore_top1000_reads.fa", row.names = FALSE, col.names = FALSE, quote = FALSE)
+```
+
+
+

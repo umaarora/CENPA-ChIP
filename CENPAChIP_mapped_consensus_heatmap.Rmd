@@ -321,5 +321,152 @@ for(f in fs){
 }
 
 ```
+
+07/18/23
+Make a plot of the 5' mapping position of each read
+Loop through all mapped sam files
+extract first 4 columns
+V1: readname
+V2: 0/16 which is forward or reverse mapped
+V3: satellite sequence
+V4: mapping position
+
+Add column for strain
+sample
+replicate
+
+```{r}
+
+filenames <- list.files(path = '/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped', pattern = '*_mapped.sam')
+path = "/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped"  
+
+position <- data.frame(matrix(ncol = 7, nrow = 0))
+x <- c("READNAME", "STRAND", "SAT", "POS", "STRAIN","REP","AB")
+colnames(position) <- x
+
+for (f in filenames) {
+
+fname = file.path(path,f)
+df = read.csv(fname, header = FALSE, sep = '\t')
+df = df[,1:4]
+
+colnames(df) <- c("READNAME", "STRAND", "SAT", "POS")
+
+filename <- strsplit(f, split = "_")
+#Convert to a vector
+filename_vector <- unlist(filename)
+
+df$STRAIN <- filename_vector[3]
+df$REP <- paste0(filename_vector[4],filename_vector[5])
+df$AB <- filename_vector[length( filename_vector) - 1]
+
+position <- rbind(position,df)
+
+
+
+}
+
+
+#setwd('/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped')
+#write.table(x ,file = "consensus_mapping_position.txt", sep = '\t', quote = FALSE, row.names = FALSE)
 ```
+
+```{r}
+setwd('/projects/dumont-lab/uma/CENPA_ChIP/centromere_mapped')
+data <- read.table(file = "consensus_mapping_position.txt", header = TRUE, sep = '\t')
+```
+```{r}
+data %>% 
+  group_by(SAT, POS, STRAND, STRAIN, REP, AB) %>%
+  dplyr::summarise(count = n()) -> data_summary
+```
+Boxplot of summary
+USED THIS PLOT
+```{r}
+data_summary %>%
+  filter(SAT == "MinorSatelliteConsensusWongandRattner1988x3") %>%
+  filter(STRAND == "0" | STRAND == "16") %>%
+  ggplot(aes(x = as.integer(POS), y = count, color = AB)) +
+  geom_col() +
+  facet_grid(rows = vars(STRAND), cols = vars(STRAIN), scales = "free") +
+  theme_light()
+```
+
+Playing around...
+Make a plot, rows are forward and reverse complement
+```{r}
+ggplot(x, aes(x = as.integer(POS), color = AB)) +
+  geom_histogram(binwidth=3) +
+  facet_grid(rows = vars(STRAND), cols = vars(SAT), scales = "free") +
+  theme_light()
+```
+
+Separate plots for minor strains, forward and reverse
+```{r}
+x %>% 
+filter(SAT == "MinorSatelliteConsensusWongandRattner1988x3") %>%
+filter(STRAND == "0" | STRAND == "16") %>%
+ggplot(aes(x = as.integer(POS), color = AB)) +
+  geom_histogram(binwidth=3) +
+  facet_grid(rows = vars(STRAND), cols = vars(STRAIN), scales = "free") +
+  theme_light()
+```
+  
+```{r}
+data %>% 
+filter(SAT == "MinorSatelliteConsensusWongandRattner1988x3") %>%
+filter(STRAND == "0" | STRAND == "16") %>%
+ggplot(aes(x = as.integer(POS), color = AB)) +
+  geom_histogram(binwidth=3) +
+  facet_grid(rows = vars(STRAND), cols = vars(STRAIN), scales = "free") +
+  theme_light()
+```
+
+FORWARD only, replicates as rows
+```{r}
+data %>% 
+filter(SAT == "MinorSatelliteConsensusWongandRattner1988x3") %>%
+filter(STRAND == "0") %>%
+ggplot(aes(x = as.integer(POS), color = AB)) +
+  geom_histogram(binwidth=3) +
+  facet_grid(rows = vars(REP), cols = vars(STRAIN), scales = "free") +
+  theme_light()
+```
+
+REVERSE only, replicates as rows
+```{r}
+data %>% 
+filter(SAT == "MinorSatelliteConsensusWongandRattner1988x3") %>%
+filter(STRAND == "16") %>%
+ggplot(aes(x = as.integer(POS), color = AB)) +
+  geom_histogram(binwidth=3) +
+  facet_grid(rows = vars(REP), cols = vars(STRAIN), scales = "free") +
+  theme_light()
+```
+
+
+```{r}
+data %>% 
+filter(SAT == "MinorSatelliteConsensusWongandRattner1988x3") %>%
+filter(STRAND == "0" | STRAND == "16") %>%
+ggplot(aes(x = as.integer(POS), color = AB, fill = REP)) +
+  geom_histogram(position = "identity", alpha = 0.2, binwidth=3) +
+  facet_grid(rows = vars(STRAND), cols = vars(STRAIN), scales = "free") +
+  theme_light()
+```
+
+
+Separate plots for major
+
+```{r}
+data %>% 
+filter(SAT == "MajorSatelliteConsensusWongandRattner1988x3") %>%
+filter(STRAND == "0" | STRAND == "16") %>%
+ggplot(aes(x = as.integer(POS), color = AB)) +
+  geom_histogram(binwidth=3) +
+  facet_grid(rows = vars(STRAND), cols = vars(STRAIN), scales = "free") +
+  theme_light()
+```
+
+
 
