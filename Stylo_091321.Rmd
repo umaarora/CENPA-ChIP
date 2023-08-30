@@ -1622,5 +1622,49 @@ ggarrange(B6CAST, B6LEWES, B6PWK, CASTLEWES, CASTPWK, LEWESPWK,
 ```
 
 
+###check PC3 and PC4
+
+Create a stylo.corpus object by reading in files from a directory
+the files in the directory should be the text files you want to compare with computational stylistics methods
+Comparing full reads
+```{r}
+top1000.corpus <- load.corpus(files = "all", 
+                              corpus.dir = "/projects/dumont-lab/uma/CENPA_ChIP/readscore/stylo_replicates/joint_kmers_COUNT_SCORE",
+                              encoding = "UTF-8")
+
+```
 
 
+let's look at n-grams with grams being words and n = 1
+
+```{r}
+corpus.words.1.grams <- txt.to.features(top1000.corpus, 
+                                        ngram.size = 1,
+                                        features = "w")
+
+```
+
+These functions can produce a summary of all the n-grams in the form of a frequency list, 
+which is then used to make a frequency table
+```{r}
+frequency.list <- make.frequency.list(corpus.words.1.grams)
+
+frequency.list.value <- make.frequency.list(corpus.words.1.grams, value = TRUE)
+
+```
+
+
+This functions can produce a summary of all the n-grams in the form of a frequency table
+produces a stylo.data object
+```{r}
+frequency.list.table <- make.table.of.frequencies(corpus.words.1.grams, features = frequency.list)
+```
+
+
+```{r}
+PCA <- stylo(frequencies = frequency.list.table, 
+      analysis.type = "PCR",
+      custom.graph.title = "Strain Variation",
+      mfw.min = 5716, mfw.max = 5716,
+      gui = FALSE)
+```
