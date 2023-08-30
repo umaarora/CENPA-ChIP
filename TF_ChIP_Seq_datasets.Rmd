@@ -1,0 +1,2531 @@
+---
+title: "TF_ChIP_Seq_analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(tidyverse)
+library(psych)
+library(BSDA)
+library(DescTools)
+library(rcompanion)
+```
+
+Datasets were downloaded from the SRA (https://www.ncbi.nlm.nih.gov/sra) with the search terms <TRANSCRIPTION FACTOR> AND "Mus musculus"[orgn:__txid10090] and the filter of source "DNA"
+
+For each project with ChIP-seq data, the list of accesssion numbers was downloaded and saved into a file. The following script was run to download the data, map it to the centromere consensus sequences and a variety of other repetitive elements, and save the output idxstats file (samtools). 
+
+```{bash}
+#!/bin/bash
+
+#SBATCH -q batch
+#SBATCH --mem 5GB
+#SBATCH -N 1 #number of nodes
+#SBATCH -n 4 #number of cores
+#SBATCH -t 72:00:00
+#SBATCH -o %j.out #STDOUT
+#SBATCH --array=1-83
+
+module load singularity
+
+#This script will download the fastq file from the SRA
+#Then it will map the fastq reads to the customized reference including the centromere consensus and transposable element families
+#Then it will sort and index the bam file
+#Then it will produce the idxstats file
+
+OUTPUT=/fastscratch/uma/ChIP_seq_datasets/MEF2D
+
+SRA=$(sed -n "${SLURM_ARRAY_TASK_ID}p" /projects/dumont-lab/uma/ChIP_seq_datasets/PRJEB43903.txt)
+
+singularity exec /home/arorau/SRAtoolkit/sratoolkit.sif fastq-dump $SRA --outdir ${OUTPUT}
+
+wc -l ${OUTPUT}/${SRA}.fastq > ${OUTPUT}/${SRA}.fastq.linecount.txt
+
+singularity exec /home/arorau/bwa/bwa.sif bwa mem -t 4 /projects/dumont-lab/uma/ChIP_seq_datasets/Consensus.fa ${OUTPUT}/${SRA}.fastq > ${OUTPUT}/${SRA}.sam
+
+singularity exec /home/arorau/samtools/samtools.sif samtools sort -@ 4 -o ${OUTPUT}/${SRA}_sorted.bam ${OUTPUT}/${SRA}.sam
+
+singularity exec /home/arorau/samtools/samtools.sif samtools index -@ 4 ${OUTPUT}/${SRA}_sorted.bam
+
+singularity exec /home/arorau/samtools/samtools.sif samtools idxstats ${OUTPUT}/${SRA}_sorted.bam > ${OUTPUT}/${SRA}.idxstats.txt
+
+rm ${OUTPUT}/${SRA}.sam
+rm ${OUTPUT}/${SRA}_sorted.bam
+rm ${OUTPUT}/${SRA}_sorted.bam.bai
+
+rm ${OUTPUT}/${SRA}.fastq
+
+wait
+
+echo All Done
+```
+
+The metadata from each ChIP-seq experiment was manually curated and saved in a spreadsheet. This metadata sheet is read in for downstream analysis. 
+```{r cars}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+datasets <- read.delim(file = "ena_ChIP-seqANDMusmusculus_run_20210909.tsv", sep = "\t")
+```
+
+Read in idxstats files for a transcription factor 
+ATF3
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/ATF3"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+#setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+#write.table(merged, file = "ATF3_idxstats.txt", row.names = FALSE)
+
+```
+Example of the data from a TF (ATF3)
+```{r}
+new <- merge(datasets, merged, by = c("accession"), all = FALSE)
+ATF3 <- new[new$AB == "ATF3",]
+
+ggplot(ATF3, aes(x = ChIPorInput,y = MinorSatelliteConsensusWongandRattner1988x2, color = Treatment, shape = Genotype)) +
+  geom_point() +
+  facet_grid(cols = vars(ATF3$Project.))
+```
+
+Example of the data from a TF (ATF3)
+```{r}
+ggplot(ATF3, aes(x = ChIPorInput,y = MajorSatelliteConsensusWongandRattner1988x2, color = Treatment, shape = Genotype)) +
+  geom_point() +
+  facet_grid(cols = vars(ATF3$Project.))
+```
+Continue with rest of TFs
+
+BATF
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/BATF"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "BATF_idxstats.txt", row.names = FALSE)
+
+```
+
+
+CUX2
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/CUX2"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "CUX2_idxstats.txt", row.names = FALSE)
+
+```
+
+
+DLX5
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/DLX5"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "DLX5_idxstats.txt", row.names = FALSE)
+
+```
+
+HNF1A
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/HNF1A"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "HNF1A_idxstats.txt", row.names = FALSE)
+
+```
+
+HNF1B
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/HNF1B"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "HNF1B_idxstats.txt", row.names = FALSE)
+
+```
+HSF2
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/HSF2"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "HSF2_idxstats.txt", row.names = FALSE)
+
+```
+
+JUN
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/JUN"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "JUN_idxstats.txt", row.names = FALSE)
+
+```
+JUNB
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/JUNB"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "JUNB_idxstats.txt", row.names = FALSE)
+
+```
+
+LHX3
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/LHX3"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "LHX3_idxstats.txt", row.names = FALSE)
+
+```
+
+LHX6
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/LHX6"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "LHX6_idxstats.txt", row.names = FALSE)
+
+```
+SOX2
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/SOX2"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "SOX2_idxstats.txt", row.names = FALSE)
+
+```
+H3K4me2
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/H3K4me2"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "H3K4me2_idxstats.txt", row.names = FALSE)
+
+```
+AIRE
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/AIRE"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "AIRE_idxstats.txt", row.names = FALSE)
+
+```
+
+BACH2
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/BACH2"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "BACH2_idxstats.txt", row.names = FALSE)
+
+```
+
+BATF3
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/BATF3"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "BATF3_idxstats.txt", row.names = FALSE)
+
+```
+CREB1
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/CREB1"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "CREB1_idxstats.txt", row.names = FALSE)
+
+```
+E2F1
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/E2F1"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "E2F1_idxstats.txt", row.names = FALSE)
+
+```
+E2F3
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/E2F3"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "E2F3_idxstats.txt", row.names = FALSE)
+
+```
+ESR1
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/ESR1"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "ESR1_idxstats.txt", row.names = FALSE)
+
+```
+
+EVI1
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/EVI1"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "EVI1_idxstats.txt", row.names = FALSE)
+
+```
+FOS
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/FOS"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "FOS_idxstats.txt", row.names = FALSE)
+
+```
+
+FOSL1
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/FOSL1"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "FOSL1_idxstats.txt", row.names = FALSE)
+
+```
+FOSL2
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/FOSL2"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "FOSL2_idxstats.txt", row.names = FALSE)
+
+```
+FOXJ2
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/FOXJ2"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "FOXJ2_idxstats.txt", row.names = FALSE)
+
+```
+FOXL2
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/FOXL2"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "FOXL2_idxstats.txt", row.names = FALSE)
+
+```
+GATA2
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/GATA2"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "GATA2_idxstats.txt", row.names = FALSE)
+
+```
+
+GATA4
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/GATA4"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "GATA4_idxstats.txt", row.names = FALSE)
+
+```
+
+GATA6
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/GATA6"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "GATA6_idxstats.txt", row.names = FALSE)
+
+```
+GRC
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/GRC"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "GRC_idxstats.txt", row.names = FALSE)
+
+```
+GRHL2
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/GRHL2"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "GRHL2_idxstats.txt", row.names = FALSE)
+
+```
+
+HLF
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/HLF"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "HLF_idxstats.txt", row.names = FALSE)
+
+```
+HSF1
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/HSF1"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "HSF1_idxstats.txt", row.names = FALSE)
+
+```
+ISL1
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/ISL1"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "ISL1_idxstats.txt", row.names = FALSE)
+
+```
+JUND
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/JUND"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "JUND_idxstats.txt", row.names = FALSE)
+
+```
+LEF1
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/LEF1"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "LEF1_idxstats.txt", row.names = FALSE)
+
+```
+
+LHX2
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/LHX2"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "LHX2_idxstats.txt", row.names = FALSE)
+
+```
+
+
+MAF
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/MAF"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "MAF_idxstats.txt", row.names = FALSE)
+
+```
+
+MAFB
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/MAFB"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "MAFB_idxstats.txt", row.names = FALSE)
+
+```
+
+MAFF
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/MAFF"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "MAFF_idxstats.txt", row.names = FALSE)
+
+```
+MAFG
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/MAFG"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "MAFG_idxstats.txt", row.names = FALSE)
+
+```
+
+MEF2D - start here!
+```{r pressure, echo=FALSE}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+column_names <- read.delim(file = "column_names.txt", header = FALSE)
+merged <- matrix(0, ncol = 1377, nrow = 0)
+merged <- as.data.frame(merged)
+colnames(merged) <- column_names[,1]
+
+path = "/fastscratch/uma/ChIP_seq_datasets/MEF2D"
+fs = list.files(path, pattern = glob2rx("*.idxstats.txt")) 
+
+for(f in fs){      
+  fname = file.path(path,f)
+  df = read.table(fname, header = FALSE)
+  n = gsub(".idxstats.txt", ".fastq.linecount.txt", f)
+  
+  fname = file.path(path,n)
+  freadcount <- read.table(fname, header = FALSE)
+  
+  readcount <- freadcount[1,1]/4
+  
+  df[,3] <- ((df[,3]/readcount)*100)
+  
+  newrow <- df[,3]
+  n = gsub(".fastq.linecount.txt", "", f)
+  n = gsub(".idxstats.txt", "", f)
+  newrow <- append(newrow, n)
+  newrow <- as.data.frame(newrow)
+  newrow <- as.data.frame(t(newrow))
+  colnames(newrow) <- column_names[,1]
+  
+  merged <- rbind(merged, newrow)
+
+  rm(df)
+}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(merged, file = "MEF2D_idxstats.txt", row.names = FALSE)
+
+```
+
+Read in and merge all TF data
+The metadata from each ChIP-seq experiment was manually curated and saved in a spreadsheet. This metadata sheet is read in for downstream analysis. 
+```{r cars}
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/metadata")
+datasets <- read.delim(file = "ena_ChIP-seqANDMusmusculus_run_20210909.tsv", sep = "\t")
+
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+AIRE <- read.table(file = "AIRE_idxstats.txt", header = TRUE)
+ATF3 <- read.table(file = "ATF3_idxstats.txt", header = TRUE)
+BACH2 <- read.table(file = "BACH2_idxstats.txt", header = TRUE)
+BATF3 <- read.table(file = "BATF3_idxstats.txt", header = TRUE)
+BATF <- read.table(file = "BATF_idxstats.txt", header = TRUE)
+CREB1 <- read.table(file = "CREB1_idxstats.txt", header = TRUE)
+CUX2 <- read.table(file = "CUX2_idxstats.txt", header = TRUE)
+DLX5 <- read.table(file = "DLX5_idxstats.txt", header = TRUE)
+E2F1 <- read.table(file = "E2F1_idxstats.txt", header = TRUE)
+E2F3 <- read.table(file = "E2F3_idxstats.txt", header = TRUE)
+ESR1 <- read.table(file = "ESR1_idxstats.txt", header = TRUE)
+EVI1 <- read.table(file = "EVI1_idxstats.txt", header = TRUE)
+FOS <- read.table(file = "FOS_idxstats.txt", header = TRUE)
+FOSL1 <- read.table(file = "FOSL1_idxstats.txt", header = TRUE)
+FOSL2 <- read.table(file = "FOSL2_idxstats.txt", header = TRUE)
+FOXJ2 <- read.table(file = "FOXJ2_idxstats.txt", header = TRUE)
+FOXL2 <- read.table(file = "FOXL2_idxstats.txt", header = TRUE)
+GATA2 <- read.table(file = "GATA2_idxstats.txt", header = TRUE)
+GATA4 <- read.table(file = "GATA4_idxstats.txt", header = TRUE)
+GATA6 <- read.table(file = "GATA6_idxstats.txt", header = TRUE)
+GRC <- read.table(file = "GRC_idxstats.txt", header = TRUE)
+GRHL2 <- read.table(file = "GRHL2_idxstats.txt", header = TRUE)
+H3K4me2 <- read.table(file = "H3K4me2_idxstats.txt", header = TRUE)
+HLF <- read.table(file = "HLF_idxstats.txt", header = TRUE)
+HNF1A <- read.table(file = "HNF1A_idxstats.txt", header = TRUE)
+HNF1B <- read.table(file = "HNF1B_idxstats.txt", header = TRUE)
+HSF1 <- read.table(file = "HSF1_idxstats.txt", header = TRUE)
+HSF2 <- read.table(file = "HSF2_idxstats.txt", header = TRUE)
+ISL1 <- read.table(file = "ISL1_idxstats.txt", header = TRUE)
+JUN <- read.table(file = "JUN_idxstats.txt", header = TRUE)
+JUNB <- read.table(file = "JUNB_idxstats.txt", header = TRUE)
+JUND <- read.table(file = "JUND_idxstats.txt", header = TRUE)
+LEF1 <- read.table(file = "LEF1_idxstats.txt", header = TRUE)
+LHX2 <- read.table(file = "LHX2_idxstats.txt", header = TRUE)
+LHX3 <- read.table(file = "LHX3_idxstats.txt", header = TRUE)
+LHX6 <- read.table(file = "LHX6_idxstats.txt", header = TRUE)
+MAFB <- read.table(file = "MAFB_idxstats.txt", header = TRUE)
+MAFF <- read.table(file = "MAFF_idxstats.txt", header = TRUE)
+MAFG <- read.table(file = "MAFG_idxstats.txt", header = TRUE)
+MAF <- read.table(file = "MAF_idxstats.txt", header = TRUE)
+MEF2D <- read.table(file = "MEF2D_idxstats.txt", header = TRUE)
+MEIS1 <- read.table(file = "MEIS1_idxstats.txt", header = TRUE)
+NGN2 <- read.table(file = "NGN2_idxstats.txt", header = TRUE)
+NR1D1 <- read.table(file = "NR1D1_idxstats.txt", header = TRUE)
+PAX6 <- read.table(file = "PAX6_idxstats.txt", header = TRUE)
+PBX1 <- read.table(file = "PBX1_idxstats.txt", header = TRUE)
+PDX1 <- read.table(file = "PDX1_idxstats.txt", header = TRUE)
+RARG <- read.table(file = "RARG_idxstats.txt", header = TRUE)
+RORA <- read.table(file = "RORA_idxstats.txt", header = TRUE)
+SALL4 <- read.table(file = "SALL4_idxstats.txt", header = TRUE)
+SMAD2 <- read.table(file = "SMAD2_idxstats.txt", header = TRUE)
+SMAD3 <- read.table(file = "SMAD3_idxstats.txt", header = TRUE)
+SOX2 <- read.table(file = "SOX2_idxstats.txt", header = TRUE)
+SOX3 <- read.table(file = "SOX3_idxstats.txt", header = TRUE)
+SOX4 <- read.table(file = "SOX4_idxstats.txt", header = TRUE)
+SOX5 <- read.table(file = "SOX5_idxstats.txt", header = TRUE)
+SP7 <- read.table(file = "SP7_idxstats.txt", header = TRUE)
+SRY <- read.table(file = "SRY_idxstats.txt", header = TRUE)
+STA5B <- read.table(file = "STA5B_idxstats.txt", header = TRUE)
+TBX3 <- read.table(file = "TBX3_idxstats.txt", header = TRUE)
+VDR <- read.table(file = "VDR_idxstats.txt", header = TRUE)
+ZEB1 <- read.table(file = "ZEB1_idxstats.txt", header = TRUE)
+ZIC1 <- read.table(file = "ZIC1_idxstats.txt", header = TRUE)
+
+merged <- rbind(AIRE, ATF3, BACH2, BATF, BATF3, CREB1, CUX2, DLX5, E2F1, E2F3, ESR1, EVI1, FOS, FOSL1, FOSL2, FOXJ2, FOXL2, GATA2, GATA4, GATA6, GRC, GRHL2, H3K4me2, HLF, HNF1A, HNF1B, HSF1, HSF2, ISL1, JUNB, JUND, JUN, LEF1, LHX2, LHX3, LHX6, MAFB, MAFF, MAFG, MAF, MEF2D, MEIS1, NGN2, NR1D1, PAX6, PBX1, PDX1, RARG, RORA, SALL4, SMAD2, SMAD3, SOX2, SOX3, SOX4, SOX5, SP7, SRY, STA5B, TBX3, VDR, ZEB1, ZIC1)
+
+new <- merge(datasets, merged, by = c("accession"), all = FALSE)
+```
+
+Write out data from all TFs into another txt file (to use when just plotting data)
+```{r}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+write.table(new, file = "Metadata_030222.txt", row.names = FALSE)
+```
+######Analysis to make plots#######
+Continue analysis from here to make plots
+```{r}
+setwd("/projects/dumont-lab/uma/ChIP_seq_datasets/data")
+new <- read.table(file = "Metadata_030222.txt", header = TRUE)
+
+```
+
+```{r}
+new %>% 
+  filter(AB != "") %>%
+  group_by(AB, tissueORcell, Genotype, Treatment, ChIPorInput, Project., Strain) %>% dplyr::summarise(avgMAJOR = mean(MajorSatelliteConsensusWongandRattner1988x2), avgMINOR = mean(MinorSatelliteConsensusWongandRattner1988x2)) -> summary_df 
+```
+
+y axis = minor or major % mapped
+x axis = project
+fill = ChIP v Input
+facet by antibody
+
+```{r}
+
+summary_df %>%
+  ggplot(aes(x = Project., y = avgMINOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  facet_wrap(vars(AB), ncol = 5, scales = "free") 
+```
+
+
+filter out factors without inputs
+
+```{r}
+enrich <- c("AIRE","BirA","BRD4","Chaf1a","CTF1","Dlx1","Ebf1","EMX2-BP","Fli1","FRA2","cFos","gH2AX","GATA4","H2A.Z","H3.3","H3K9me3","H3K79me3","Histone H1","HNF1A","HOX9","Jund","Myc-DNMT3A","Med12","Mef2a","Nup153","p300","PARP-1","Pax5","PAX6","REV-ERBa","RelA","RXRa","RNA Pol II S5P","Pax5","POU5F1","SMAD3","Sox6","Tgif1","Tgif2","TOP1","USF-1","Uhrf1","Wdr5")
+
+with_input <- c("ATF2","BATF","BATF3","BHLHE40","BirA","Brn1","Brn2","BRD4","BMAL1","BRG1","Chaf1a","C/EBPa","C/EBPb","Cdx2","CHD2","cFos","cJun","c-Myb","Cdk8","COREST","CTF1","CTCF","Dmrt1","Dlx1","E2F1","Ebf1","Erg","ESR1","ETS1","EMX2-BP","Esrrb","Eralpha","FoxA1","Fli1","Fra1","FRA2","FOSL1","GATA1","GATA6","GCN5","gH2AX","H2A.Z", "H3.3","H3","H3K4me1","H3K27ac","H3K36me1","H3K36me3","H3K79me2","H3K9me3","H3K9ac","Hand2","HCFC1","H3S28P","Hdac1","HDAC2","HLF","HNF1A","Hoxa","HOX9","Hoxb13","HSF1","JunB","JunD","JMJD3","Lmo2","LHX2","MafK","Matr3","MECP2","Med12","Meis1","Mef2a","MyoD","Meis1/2","MED1","MLL4","MyoG","Nanog","NCoR1","NCoR2","Nkx2-5","Nrf2","NRSF","Nup153","OTX2","p300","PARP-1","Pax5","Pitx1","Prdm5","POU5F1","PU1","RAD21","REV-ERBa","RNA Pol II S2P","RNA Pol II S5P","RXRa","RelA","RORa","pCREB","Sox2","Sox17","Sox9","Suz12","SS18","STAT6","Tal1","TBX5","TCF7L2","Tgif1","Tgif2","Uhrf1","UBF","VDR","ZC3H11A","ZNF384","ZIC2")
+
+cent_motif <- c("ANDR","ALX1","AIRE","ATX3","ARI5B","BACH2","BATF","BATF3","BARX1","CDX4","CREB1","CREM","CUX1","CUX2","DBP","DLX5","E2F1","E2F3","ESR1","EVI1","EVX1","cFos","FOSB","FOSL1","FOSL2","FOXJ2","FOXJ3","FOXL2","GATA2","GATA4","GATA6","GCR","GRC","GRHL2","HLF","HNF1A","HNF1B","HNF6","HSF1","HSF2","HXA1","HXA13","HXA9","HXB4","ISL","ISL1","cJun","JunB","JunD","LEF1","LHX2","LHX3","LHX6","MAF","MAFB","MAFF","MAFG","Meis1","MEF2D","MTF1","NF2L1","NF2L2","NGN2","NKX21","NKX25","NKX31","NR1D2","NOBOX","NR1D1","NR2E3","OVOL1","PAX6","PBX1","PBX3","PDX1","PO3F1","PO3F2","PKNX1","PRRX2","PRGR","RARG","RORA","RORG","RXRB","SALL4","SMAD2","SMAD3","SMCA5","Sox2","SOX3","SOX4","SOX5","STA5B","SP7","SRBP1","STA5A","SRY","TBX21","TBX3","TF7L1","TF7L2","VDR","ZEB1","ZIC1")
+
+
+```
+
+
+TFs that are present in B6 and that show some evidence of % mapped minor higher in ChIP compared to input
+
+AIRE
+cFos
+GATA4
+HNF1A
+PAX6
+SMAD3
+
+Plot the TFs that have only one dataset or point
+MINOR
+```{r}
+select <- c("AIRE","HNF1A", "PAX6")
+
+summary_df %>%
+  filter(AB %in% select) %>%
+  ggplot(aes(x = ChIPorInput, y = avgMINOR, color = tissueORcell )) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() +
+  facet_wrap(vars(AB), ncol = 5, scales = "free") 
+```
+
+MAJOR
+```{r}
+select <- c("AIRE","HNF1A", "PAX6")
+
+summary_df %>%
+  filter(AB %in% select) %>%
+  ggplot(aes(x = ChIPorInput, y = avgMAJOR, color = tissueORcell )) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() +
+  facet_wrap(vars(AB), ncol = 5, scales = "free") 
+```
+
+
+Plot individual TFs
+
+GATA4
+Minor
+```{r}
+summary_df %>%
+  filter(AB == "GATA4") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMINOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 5, scales = "free") 
+```
+Major
+```{r}
+summary_df %>%
+  filter(AB == "GATA4") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMAJOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 5, scales = "free") 
+```
+
+
+cFos
+Minor
+```{r}
+summary_df %>%
+  filter(AB == "cFos") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMINOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 5, scales = "free") 
+```
+
+Major
+```{r}
+summary_df %>%
+  filter(AB == "cFos") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMAJOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 5, scales = "free") 
+```
+
+
+SMAD3
+Minor
+```{r}
+summary_df %>%
+  filter(AB == "SMAD3") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMINOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 3, scales = "free") 
+```
+Without cell type splitting
+```{r}
+summary_df %>%
+  filter(AB == "SMAD3") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMINOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() 
+```
+
+```{r}
+summary_df %>%
+  filter(AB == "SMAD3") %>%
+```
+
+
+Major
+```{r}
+summary_df %>%
+  filter(AB == "SMAD3") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMAJOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 5, scales = "free") 
+```
+
+
+
+A good positive control
+H3
+Minor
+```{r}
+summary_df %>%
+  filter(AB == "H3") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMINOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 3, scales = "free") 
+```
+
+Major
+```{r}
+summary_df %>%
+  filter(AB == "H3") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMAJOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 3, scales = "free") 
+```
+
+
+H3K9me3 expected at major satellite
+Minor
+```{r}
+summary_df %>%
+  filter(AB == "H3K9me3") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMINOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 5, scales = "free") 
+```
+
+
+Major
+```{r}
+summary_df %>%
+  filter(AB == "H3K9me3") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMAJOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 5, scales = "free") 
+```
+
+
+Negative control
+LHX2 shows no association at the centromere
+Minor
+```{r}
+summary_df %>%
+  filter(AB == "LHX2") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMINOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 5, scales = "free") 
+```
+
+
+Major
+```{r}
+summary_df %>%
+  filter(AB == "LHX2") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMAJOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 5, scales = "free") 
+```
+
+
+
+
+Opposite patterns of major and minor
+Minor
+```{r}
+summary_df %>%
+  filter(AB == "Myc-DNMT3A") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMINOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 5, scales = "free") 
+```
+
+
+Major
+```{r}
+summary_df %>%
+  filter(AB == "Myc-DNMT3A") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMAJOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 5, scales = "free") 
+```
+
+Opposite patterns of major and minor but in motif list
+
+Minor
+```{r}
+summary_df %>%
+  filter(AB == "Nanog") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMINOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 5, scales = "free") 
+```
+
+
+Major
+```{r}
+summary_df %>%
+  filter(AB == "Nanog") %>%
+  ggplot(aes(x = ChIPorInput, y = avgMAJOR, fill = ChIPorInput)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme_classic() + 
+  facet_wrap(vars(tissueORcell), ncol = 5, scales = "free") 
+```
+Filter for accession numbers of genes HNF1A, SMAD3, H3, and H3K9me3
+To produce table for publication
+```{r}
+
+genes_of_interest <- c("HNF1A","SMAD3","H3","H3K9me3")
+new %>%
+  filter(AB %in% genes_of_interest) %>%
+  group_by(accession) -> select_tf
+
+select_tf <- select_tf[,c(1,4,6,7,8,9,10)]
+
+write.table(select_tf, file = "Supplementary_Table_2.csv", sep = ",", quote = FALSE, row.names = FALSE)
+
+```
+
+###############08/08/22##################
+Plot enrichment of ChIP/input for all TFs
+
+```{r}
+new %>% 
+  group_by(AB, tissueORcell, Genotype, Treatment,ChIPorInput,Project.,Strain) %>%
+  dplyr::summarise(avgMAJOR = mean(MajorSatelliteConsensusWongandRattner1988x2), avgMINOR = mean(MinorSatelliteConsensusWongandRattner1988x2)) %>%
+  filter(AB != "") %>%
+  filter(ChIPorInput != "")  -> df_enrichment 
+```
+
+```{r}
+df_enrichment %>%
+  group_by(Project.) %>%
+  mutate(check1=any(ChIPorInput=="Input")) -> has_input
+
+has_input %>%
+  filter(check1 == TRUE) -> has_input
+```
+
+```{r}
+has_input %>% 
+  pivot_wider(names_from = ChIPorInput, values_from  = avgMINOR) -> ChIP
+ChIP <- ChIP[,1:9]
+ChIP <- na.omit(ChIP)
+
+has_input %>% 
+  pivot_wider(names_from = ChIPorInput, values_from  = avgMINOR) -> Input
+Input <- Input[,c(1:8,11)]
+Input <- na.omit(Input)
+
+```
+
+
+```{r}
+ChIP_Input_merge <- merge(ChIP, Input, by = c("AB", "tissueORcell", "Genotype", "Treatment","Project.","Strain"))
+
+ChIP_Input_merge$ChIPoverInput <- ChIP_Input_merge$ChIP/ChIP_Input_merge$Input
+ChIP_Input_merge$AB <- as.factor(ChIP_Input_merge$AB)
+
+ChIP_Input_merge %>%
+  dplyr::group_by(AB) %>% 
+  dplyr::mutate(count = n()) %>%
+  filter(count > 1) -> ChIP_Input_merge_n1plus
+
+cent_motif <- c("ANDR","ALX1","AIRE","ATX3","ARI5B","BACH2","BATF","BATF3","BARX1","CDX4","CREB1","CREM","CUX1","CUX2","DBP","DLX5","E2F1","E2F3","ESR1","EVI1","EVX1","cFos","FOSB","FOSL1","FOSL2","FOXJ2","FOXJ3","FOXL2","GATA2","GATA4","GATA6","GCR","GRC","GRHL2","HLF","HNF1A","HNF1B","HNF6","HSF1","HSF2","HXA1","HXA13","HXA9","HXB4","ISL","ISL1","cJun","JunB","JunD","LEF1","LHX2","LHX3","LHX6","MAF","MAFB","MAFF","MAFG","MEF2D","MTF1","NF2L1","NF2L2","NGN2","NKX21","NKX25","NKX31","NR1D2","NOBOX","NR1D1","NR2E3","OVOL1","PAX6","PBX1","PBX3","PDX1","PO3F1","PO3F2","PKNX1","PRRX2","PRGR","RARG","RORA","RORG","RXRB","SALL4","SMAD2","SMAD3","SMCA5","Sox2","SOX3","SOX4","SOX5","STA5B","SP7","SRBP1","STA5A","SRY","TBX21","TBX3","TF7L1","TF7L2","VDR","ZEB1","ZIC1")
+
+control <- c("H2A1","H2A1.2","H3","H3.3","H3K4me1","H3K4me2","H3K4me3","H3K9ac","H3K9me3","H3K27ac","H3K27me3","H3K36me3","H3K79me2")
+```
+
+Plot Tfs on X, enrichment on Y
+```{r}
+ChIP_Input_merge_n1plus %>% 
+  na.omit() %>%
+  filter(AB %in% cent_motif) %>%
+  ggplot(aes(x = reorder(AB,ChIPoverInput,mean), y = ChIPoverInput)) +
+  geom_violin() +
+  geom_dotplot(binaxis = "y", stackdir = "center",binwidth = .1) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45)) +
+  ylim(0,10) +
+  geom_hline(yintercept = 1, colour = c("red")) 
+```
+
+```{r}
+ChIP_Input_merge_n1plus %>% 
+  na.omit %>% 
+  filter(AB %in% control) %>%
+  ggplot(aes(x = reorder(AB,ChIPoverInput,mean), y = ChIPoverInput)) +
+  geom_dotplot(binaxis = "y", stackdir = "center",binwidth = .3) +
+  geom_violin() +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45)) +
+  geom_hline(yintercept = 1, colour = c("red"))
+```
+
+Write out table with bioproject accessions
+```{r}
+ChIP_Input_merge_n1plus$Project. <- as.factor(ChIP_Input_merge_n1plus$Project.)
+setwd("~/")
+write.csv(levels(ChIP_Input_merge_n1plus$Project.), file = "SupplementaryTable4.csv")
+```
+
+Statistics : sign test
+
+```{r}
+if(!require(psych)){install.packages("psych")}
+if(!require(BSDA)){install.packages("BSDA")}
+if(!require(DescTools)){install.packages("DescTools")}
+if(!require(rcompanion)){install.packages("rcompanion")}
+```
+
+separate ChIP and Input
+```{r}
+has_input_ChIP <- has_input[has_input$ChIPorInput == "ChIP",]
+has_input_ChIP <- has_input_ChIP[,c(1,2,3,4,6,7,8,9)]
+colnames(has_input_ChIP) <- c("AB","tissueORcell","Genotype","Treatment","Project.","Strain","avgMAJOR_ChIP","avgMINOR_ChIP")
+has_input_Input <- has_input[has_input$ChIPorInput == "Input",]
+has_input_Input <- has_input_Input[,c(1,2,3,4,6,7,8,9)]
+colnames(has_input_Input) <- c("AB","tissueORcell","Genotype","Treatment","Project.","Strain","avgMAJOR_Input","avgMINOR_Input")
+
+has_input_merge <- merge(has_input_ChIP,has_input_Input,by = c("AB","tissueORcell","Genotype","Treatment","Project.","Strain"))
+```
+
+Perform test on each histone mark and TF
+H3K9me3
+```{r}
+H3K9me3 <- has_input_merge[has_input_merge$AB == "H3K9me3",]
+SIGN.test(x = H3K9me3$avgMINOR_ChIP,
+          y = H3K9me3$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+
+
+H3K79me2
+```{r}
+H3K79me2 <- has_input_merge[has_input_merge$AB == "H3K79me2",]
+SIGN.test(x = H3K79me2$avgMINOR_ChIP,
+          y = H3K79me2$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+
+H3K4me2
+```{r}
+H3K4me2 <- has_input_merge[has_input_merge$AB == "H3K4me2",]
+SIGN.test(x = H3K4me2$avgMINOR_ChIP,
+          y = H3K4me2$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+H3K4me1
+```{r}
+H3K4me1 <- has_input_merge[has_input_merge$AB == "H3K4me1",]
+SIGN.test(x = H3K4me1$avgMINOR_ChIP,
+          y = H3K4me1$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+H3K9ac
+```{r}
+H3K9ac <- has_input_merge[has_input_merge$AB == "H3K9ac",]
+SIGN.test(x = H3K9ac$avgMINOR_ChIP,
+          y = H3K9ac$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+H3K36me3
+```{r}
+H3K36me3 <- has_input_merge[has_input_merge$AB == "H3K36me3",]
+SIGN.test(x = H3K36me3$avgMINOR_ChIP,
+          y = H3K36me3$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+H3K4me3
+```{r}
+H3K4me3 <- has_input_merge[has_input_merge$AB == "H3K4me3",]
+SIGN.test(x = H3K4me3$avgMINOR_ChIP,
+          y = H3K4me3$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+H3
+```{r}
+H3 <- has_input_merge[has_input_merge$AB == "H3",]
+SIGN.test(x = H3$avgMINOR_ChIP,
+          y = H3$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+H3.3
+```{r}
+H3.3 <- has_input_merge[has_input_merge$AB == "H3.3",]
+SIGN.test(x = H3.3$avgMINOR_ChIP,
+          y = H3.3$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+H3K27me3
+```{r}
+H3K27me3 <- has_input_merge[has_input_merge$AB == "H3K27me3",]
+SIGN.test(x = H3K27me3$avgMINOR_ChIP,
+          y = H3K27me3$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+H2A1.2
+```{r}
+H2A1.2 <- has_input_merge[has_input_merge$AB == "H2A1.2",]
+SIGN.test(x = H2A1.2$avgMINOR_ChIP,
+          y = H2A1.2$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+H2A1
+```{r}
+H2A1 <- has_input_merge[has_input_merge$AB == "H2A1",]
+SIGN.test(x = H2A1$avgMINOR_ChIP,
+          y = H2A1$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+H3K27ac
+```{r}
+H3K27ac <- has_input_merge[has_input_merge$AB == "H3K27ac",]
+SIGN.test(x = H3K27ac$avgMINOR_ChIP,
+          y = H3K27ac$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+LHX2
+```{r}
+LHX2 <- has_input_merge[has_input_merge$AB == "LHX2",]
+SIGN.test(x = LHX2$avgMINOR_ChIP,
+          y = LHX2$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+
+HNF1B
+```{r}
+HNF1B <- has_input_merge[has_input_merge$AB == "HNF1B",]
+SIGN.test(x = HNF1B$avgMINOR_ChIP,
+          y = HNF1B$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+JunD
+```{r}
+JunD <- has_input_merge[has_input_merge$AB == "JunD",]
+SIGN.test(x = JunD$avgMINOR_ChIP,
+          y = JunD$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+DLX5
+```{r}
+DLX5 <- has_input_merge[has_input_merge$AB == "DLX5",]
+SIGN.test(x = DLX5$avgMINOR_ChIP,
+          y = DLX5$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+HSF1
+```{r}
+HSF1 <- has_input_merge[has_input_merge$AB == "HSF1",]
+SIGN.test(x = HSF1$avgMINOR_ChIP,
+          y = HSF1$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+HNF1A
+```{r}
+HNF1A <- has_input_merge[has_input_merge$AB == "HNF1A",]
+SIGN.test(x = HNF1A$avgMINOR_ChIP,
+          y = HNF1A$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+SMAD3
+```{r}
+SMAD3 <- has_input_merge[has_input_merge$AB == "SMAD3",]
+SIGN.test(x = SMAD3$avgMINOR_ChIP,
+          y = SMAD3$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+GATA4
+```{r}
+GATA4 <- has_input_merge[has_input_merge$AB == "GATA4",]
+SIGN.test(x = GATA4$avgMINOR_ChIP,
+          y = GATA4$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+VDR
+```{r}
+VDR <- has_input_merge[has_input_merge$AB == "VDR",]
+SIGN.test(x = VDR$avgMINOR_ChIP,
+          y = VDR$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+ESR1
+```{r}
+ESR1 <- has_input_merge[has_input_merge$AB == "ESR1",]
+SIGN.test(x = ESR1$avgMINOR_ChIP,
+          y = ESR1$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+
+BATF
+```{r}
+BATF <- has_input_merge[has_input_merge$AB == "BATF",]
+SIGN.test(x = BATF$avgMINOR_ChIP,
+          y = BATF$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+
+cJun
+```{r}
+cJun <- has_input_merge[has_input_merge$AB == "cJun",]
+SIGN.test(x = cJun$avgMINOR_ChIP,
+          y = cJun$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+cFos
+```{r}
+cFos <- has_input_merge[has_input_merge$AB == "cFos",]
+SIGN.test(x = cFos$avgMINOR_ChIP,
+          y = cFos$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+Sox2
+```{r}
+SOX2 <- has_input_merge[has_input_merge$AB == "Sox2",]
+SIGN.test(x = SOX2$avgMINOR_ChIP,
+          y = SOX2$avgMINOR_Input,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+
+
+
+
